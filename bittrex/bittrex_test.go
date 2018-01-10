@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var b = New(http.DefaultClient, "", "")
+var b = New(http.DefaultClient, "94", "11")
 
 func TestBittrex_GetTicker(t *testing.T) {
 	ticker, err := b.GetTicker(goex.BTC_USDT)
@@ -19,4 +19,16 @@ func TestBittrex_GetDepth(t *testing.T) {
 	t.Log("err=>", err)
 	t.Log("ask=>", dep.AskList)
 	t.Log("bid=>", dep.BidList)
+}
+
+func Test_GetAcc(t *testing.T) {
+	acc, err := b.GetAccount()
+	t.Log("err=>", err)
+	t.Log("acc=>", acc)
+}
+
+func Test_Sell(t *testing.T) {
+	acc, err := b.LimitSell(`1`, `1`, goex.NEO_ETH)
+	t.Log("err=>", err)
+	t.Log("acc=>", acc)
 }
