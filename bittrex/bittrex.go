@@ -7,7 +7,9 @@ import (
 	"sort"
 	"time"
 
+	"encoding/json"
 	. "github.com/nntaoli-project/GoEx"
+	//"log"
 )
 
 type Bittrex struct {
@@ -102,6 +104,11 @@ func (bx *Bittrex) GetAccount() (*Account, error) {
 	balances := resp["result"].([]interface{})
 	for _, v := range balances {
 		vv := v.(map[string]interface{})
+
+		if ToFloat64(vv["Available"]) == 0 && ToFloat64(vv["Pending"]) == 0 {
+			continue
+		}
+
 		currency := NewCurrency(vv["Currency"].(string), "")
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
@@ -139,29 +146,39 @@ func (bx *Bittrex) GetTicker(currency CurrencyPair) (*Ticker, error) {
 }
 
 func (bx *Bittrex) GetDepth(size int, currency CurrencyPair) (*Depth, error) {
+	respdata, err := NewHttpRequest(bx.client, "GET",
+		fmt.Sprintf("%s/public/getorderbook?market=%s&type=both", bx.baseUrl, currency.ToSymbol2("-")), "", nil)
 
-	resp, err := HttpGet(bx.client, fmt.Sprintf("%s/public/getorderbook?market=%s&type=both", bx.baseUrl, currency.ToSymbol2("-")))
 	if err != nil {
 		errCode := HTTP_ERR_CODE
 		errCode.OriginErrMsg = err.Error()
 		return nil, errCode
 	}
 
-	result := resp["result"].(map[string]interface{})
+	resp := struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		Result  struct {
+			Buy  []map[string]float64 `json:"buy"`
+			Sell []map[string]float64 `json:"sell"`
+		} `json:"result"`
+	}{}
 
-	bids, _ := result["buy"].([]interface{})
-	asks, _ := result["sell"].([]interface{})
-
-	dep := new(Depth)
-
-	for _, v := range bids {
-		r := v.(map[string]interface{})
-		dep.BidList = append(dep.BidList, DepthRecord{ToFloat64(r["Rate"]), ToFloat64(r["Quantity"])})
+	if err = json.Unmarshal(respdata, &resp); err != nil {
+		return nil, err
 	}
 
-	for _, v := range asks {
-		r := v.(map[string]interface{})
-		dep.AskList = append(dep.AskList, DepthRecord{ToFloat64(r["Rate"]), ToFloat64(r["Quantity"])})
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Message)
+	}
+
+	dep := new(Depth)
+	for _, v := range resp.Result.Buy {
+		dep.BidList = append(dep.BidList, DepthRecord{v["Rate"], v["Quantity"]})
+	}
+
+	for _, v := range resp.Result.Sell {
+		dep.AskList = append(dep.AskList, DepthRecord{v["Rate"], v["Quantity"]})
 	}
 
 	sort.Sort(sort.Reverse(dep.AskList))
