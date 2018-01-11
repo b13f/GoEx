@@ -2,11 +2,11 @@ package okcoin
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	. "github.com/nntaoli-project/GoEx"
 	"net/http"
 	"net/url"
-	"strconv"
+	"strings"
 )
 
 type OKExSpot struct {
@@ -34,76 +34,57 @@ func (ctx *OKExSpot) GetAccount() (*Account, error) {
 		return nil, err
 	}
 
-	var respMap map[string]interface{}
+	resp := struct {
+		Info struct {
+			Funds struct {
+				Free    map[string]string `json:"free"`
+				Freezed map[string]string `json:"freezed"`
+			} `json:"funds"`
+		} `json:"info"`
+		Result bool    `json:"result"`
+		Error  float64 `json:"error_code"`
+	}{}
 
-	err = json.Unmarshal(body, &respMap)
+	err = json.Unmarshal(body, &resp)
 	if err != nil {
 		return nil, err
 	}
 
-	if errcode , isok := respMap["error_code"].(float64) ; isok {
-		errcodeStr := strconv.FormatFloat(errcode, 'f', 0, 64)
-		return nil, errors.New(errcodeStr)
-	}
-	//log.Println(respMap)
-	info, ok := respMap["info"].(map[string]interface{})
-	if !ok {
-		return nil, errors.New(string(body))
+	if resp.Error > 0 {
+		return nil, fmt.Errorf("%f", resp.Error)
 	}
 
-	funds := info["funds"].(map[string]interface{})
-	free := funds["free"].(map[string]interface{})
-	freezed := funds["freezed"].(map[string]interface{})
+	acc := new(Account)
+	acc.Exchange = ctx.GetExchangeName()
+	acc.SubAccounts = make(map[Currency]SubAccount)
 
-	account := new(Account)
-	account.Exchange = ctx.GetExchangeName()
+	for curr, amount := range resp.Info.Funds.Free {
+		if ToFloat64(amount) == 0 {
+			continue
+		}
+		currency := NewCurrency(strings.ToUpper(curr), "")
+		acc.SubAccounts[currency] = SubAccount{
+			Currency: currency,
+			Amount:   ToFloat64(amount),
+		}
+	}
 
-	var (
-		btcSubAccount  SubAccount
-		ltcSubAccount  SubAccount
-		ethSubAccount  SubAccount
-		etcSubAccount  SubAccount
-		bchSubAccount  SubAccount
-		usdtSubAccount SubAccount
-	)
+	for curr, frozenAmount := range resp.Info.Funds.Freezed {
+		if ToFloat64(frozenAmount) == 0 {
+			continue
+		}
 
-	btcSubAccount.Currency = BTC
-	btcSubAccount.Amount = ToFloat64(free["btc"])
-	btcSubAccount.LoanAmount = 0
-	btcSubAccount.ForzenAmount = ToFloat64(freezed["btc"])
+		currency := NewCurrency(strings.ToUpper(curr), "")
+		if t, ok := acc.SubAccounts[currency]; ok {
+			t.ForzenAmount = ToFloat64(frozenAmount)
+			acc.SubAccounts[currency] = t
+		} else {
+			acc.SubAccounts[currency] = SubAccount{
+				Currency:     currency,
+				ForzenAmount: ToFloat64(frozenAmount),
+			}
+		}
+	}
 
-	ltcSubAccount.Currency = LTC
-	ltcSubAccount.Amount = ToFloat64(free["ltc"])
-	ltcSubAccount.LoanAmount = 0
-	ltcSubAccount.ForzenAmount = ToFloat64(freezed["ltc"])
-
-	ethSubAccount.Currency = ETH
-	ethSubAccount.Amount = ToFloat64(free["eth"])
-	ethSubAccount.LoanAmount = 0
-	ethSubAccount.ForzenAmount = ToFloat64(freezed["eth"])
-
-	etcSubAccount.Currency = ETC
-	etcSubAccount.Amount = ToFloat64(free["etc"])
-	etcSubAccount.LoanAmount = 0
-	etcSubAccount.ForzenAmount = ToFloat64(freezed["etc"])
-
-	bchSubAccount.Currency = BCH
-	bchSubAccount.Amount = ToFloat64(free["bch"])
-	bchSubAccount.LoanAmount = 0
-	bchSubAccount.ForzenAmount = ToFloat64(freezed["bch"])
-
-	usdtSubAccount.Currency = USDT
-	usdtSubAccount.Amount = ToFloat64(free["usdt"])
-	usdtSubAccount.LoanAmount = 0
-	usdtSubAccount.ForzenAmount = ToFloat64(freezed["usdt"])
-
-	account.SubAccounts = make(map[Currency]SubAccount, 5)
-	account.SubAccounts[BTC] = btcSubAccount
-	account.SubAccounts[LTC] = ltcSubAccount
-	account.SubAccounts[ETH] = ethSubAccount
-	account.SubAccounts[ETC] = etcSubAccount
-	account.SubAccounts[BCH] = bchSubAccount
-	account.SubAccounts[USDT] = usdtSubAccount
-
-	return account, nil
+	return acc, nil
 }

@@ -82,84 +82,36 @@ func (hbV2 *HuoBi_V2) GetAccount() (*Account, error) {
 
 	list := datamap["list"].([]interface{})
 	acc := new(Account)
-	acc.SubAccounts = make(map[Currency]SubAccount, 3)
+	acc.SubAccounts = make(map[Currency]SubAccount)
 	acc.Exchange = hbV2.GetExchangeName()
 
-	var (
-		cnySubAcc  SubAccount
-		bccSubAcc  SubAccount
-		etcSubAcc  SubAccount
-		ethSubAcc  SubAccount
-		btcSubAcc  SubAccount
-		ltcSubAcc  SubAccount
-		usdtSubAcc SubAccount
-	)
-
 	for _, v := range list {
-		balancemap := v.(map[string]interface{})
-		currency := balancemap["currency"].(string)
-		typeStr := balancemap["type"].(string)
-		balance := ToFloat64(balancemap["balance"])
-		switch currency {
-		case "cny":
-			cnySubAcc.Currency = CNY
-			if typeStr == "trade" {
-				cnySubAcc.Amount = balance
+		vv := v.(map[string]interface{})
+
+		if ToFloat64(vv["balance"]) == 0 {
+			continue
+		}
+
+		currency := NewCurrency(strings.ToUpper(vv["currency"].(string)), "")
+
+		if _,ok:=acc.SubAccounts[currency]; ok {
+			t := acc.SubAccounts[currency]
+			if vv["type"].(string) == "trade" {
+				t.Amount = ToFloat64(vv["balance"])
 			} else {
-				cnySubAcc.ForzenAmount = balance
+				t.ForzenAmount = ToFloat64(vv["balance"])
 			}
-		case "bcc":
-			bccSubAcc.Currency = BCC
-			if typeStr == "trade" {
-				bccSubAcc.Amount = balance
+			acc.SubAccounts[currency] = t
+		} else {
+			t := SubAccount{Currency:currency}
+			if vv["type"].(string) == "trade" {
+				t.Amount = ToFloat64(vv["balance"])
 			} else {
-				bccSubAcc.ForzenAmount = balance
+				t.ForzenAmount = ToFloat64(vv["balance"])
 			}
-		case "etc":
-			etcSubAcc.Currency = ETC
-			if typeStr == "trade" {
-				etcSubAcc.Amount = balance
-			} else {
-				etcSubAcc.ForzenAmount = balance
-			}
-		case "eth":
-			ethSubAcc.Currency = ETH
-			if typeStr == "trade" {
-				ethSubAcc.Amount = balance
-			} else {
-				ethSubAcc.ForzenAmount = balance
-			}
-		case "btc":
-			btcSubAcc.Currency = BTC
-			if typeStr == "trade" {
-				btcSubAcc.Amount = balance
-			} else {
-				btcSubAcc.ForzenAmount = balance
-			}
-		case "ltc":
-			ltcSubAcc.Currency = LTC
-			if typeStr == "trade" {
-				ltcSubAcc.Amount = balance
-			} else {
-				ltcSubAcc.ForzenAmount = balance
-			}
-		case "usdt":
-			usdtSubAcc.Currency = USDT
-			if typeStr == "trade" {
-				usdtSubAcc.Amount = balance
-			} else {
-				usdtSubAcc.ForzenAmount = balance
-			}
+			acc.SubAccounts[currency] = t
 		}
 	}
-
-	acc.SubAccounts[CNY] = cnySubAcc
-	acc.SubAccounts[BCC] = bccSubAcc
-	acc.SubAccounts[ETC] = etcSubAcc
-	acc.SubAccounts[ETH] = ethSubAcc
-	acc.SubAccounts[BTC] = btcSubAcc
-	acc.SubAccounts[USDT] = usdtSubAcc
-	acc.SubAccounts[LTC] = ltcSubAcc
 
 	return acc, nil
 }

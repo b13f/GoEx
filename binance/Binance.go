@@ -193,8 +193,12 @@ func (bn *Binance) GetAccount() (*Account, error) {
 
 	balances := respmap["balances"].([]interface{})
 	for _, v := range balances {
-		//log.Println(v)
 		vv := v.(map[string]interface{})
+
+		if ToFloat64(vv["free"]) == 0 && ToFloat64(vv["locked"])==0{
+			continue
+		}
+
 		currency := NewCurrency(vv["asset"].(string), "")
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
