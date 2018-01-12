@@ -25,10 +25,10 @@ func New(client *http.Client, apiKey, secretKey string) *Kucoin {
 }
 
 func (ku *Kucoin) LimitBuy(amount, price string, currency CurrencyPair) (*Order, error) {
-	return ku.placeOrder(amount, price, currency, `sell`)
+	return ku.placeOrder(amount, price, currency, `BUY`)
 }
 func (ku *Kucoin) LimitSell(amount, price string, currency CurrencyPair) (*Order, error) {
-	return ku.placeOrder(amount, price, currency, `sell`)
+	return ku.placeOrder(amount, price, currency, `SELL`)
 }
 func (ku *Kucoin) MarketBuy(amount, price string, currency CurrencyPair) (*Order, error) {
 	panic("not implement")
@@ -224,7 +224,7 @@ func (ku *Kucoin) placeOrder(amount, price string, pair CurrencyPair, orderSide 
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["message"].(string))
+		return nil, fmt.Errorf("%s", resp["msg"].(string))
 	}
 
 	res := resp["data"].(map[string]interface{})

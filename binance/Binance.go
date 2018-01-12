@@ -153,18 +153,13 @@ func (bn *Binance) placeOrder(amount, price string, pair CurrencyPair, orderType
 		return nil, errors.New(respmap["msg"].(string))
 	}
 
-	orderId, isok := respmap["orderId"].(string)
-	if !isok {
-		return nil, errors.New(string(resp))
-	}
-
 	side := BUY
 	if orderSide == "SELL" {
 		side = SELL
 	}
 	return &Order{
 		Currency:   pair,
-		OrderID:    ToInt(orderId),
+		OrderID:    ToInt(respmap["orderId"]),
 		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
