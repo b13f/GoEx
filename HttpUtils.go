@@ -37,7 +37,12 @@ func NewHttpRequest(client *http.Client, reqType string, reqUrl string, postData
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, errors.New(fmt.Sprintf("HttpStatusCode:%d ,Desc:%s", resp.StatusCode, string(bodyData)))
+		//because html in error is bad idea
+		errDesc := string(bodyData)
+		if len(errDesc)>120 {
+			errDesc = strings.Replace(string(bodyData),"\n"," ",-1)[:120]
+		}
+		return nil, errors.New(fmt.Sprintf("HttpStatusCode:%d ,Desc:%s", resp.StatusCode, errDesc))
 	}
 
 	//var bodyDataMap map[string]interface{};
