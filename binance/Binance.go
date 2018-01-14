@@ -83,7 +83,7 @@ func (bn *Binance) GetDepth(size int, currencyPair CurrencyPair) (*Depth, error)
 	apiUrl := fmt.Sprintf(API_V1+DEPTH_URI, currencyPair.ToSymbol(""), size)
 	resp, err := HttpGet(bn.httpClient, apiUrl)
 	if err != nil {
-		log.Println("GetDepth error:", err)
+		//log.Println("GetDepth error:", err)
 		return nil, err
 	}
 

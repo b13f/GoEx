@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	. "github.com/nntaoli-project/GoEx"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,7 +35,7 @@ func (hbV2 *HuoBi_V2) GetAccountId() (string, error) {
 	params := &url.Values{}
 	hbV2.buildPostForm("GET", path, params)
 
-	log.Println(hbV2.baseUrl + path + "?" + params.Encode())
+	//log.Println(hbV2.baseUrl + path + "?" + params.Encode())
 
 	respmap, err := HttpGet(hbV2.httpClient, hbV2.baseUrl+path+"?"+params.Encode())
 	if err != nil {
