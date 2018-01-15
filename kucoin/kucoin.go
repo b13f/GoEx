@@ -90,7 +90,7 @@ func (ku *Kucoin) GetAccount() (*Account, error) {
 	if err != nil {
 		errCode := HTTP_ERR_CODE
 		errCode.OriginErrMsg = err.Error()
-		return nil, errCode
+		return nil, err
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
@@ -130,11 +130,16 @@ func (ku *Kucoin) GetDepth(size int, currency CurrencyPair) (*Depth, error) {
 	if err != nil {
 		errCode := HTTP_ERR_CODE
 		errCode.OriginErrMsg = err.Error()
-		return nil, errCode
+		return nil, err
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["message"].(string))
+		switch m := resp["message"].(type) {
+		case string:
+			return nil, fmt.Errorf("%s", m)
+		default:
+			return nil, fmt.Errorf("%v", resp)
+		}
 	}
 
 	result := resp["data"].(map[string]interface{})
@@ -215,7 +220,7 @@ func (ku *Kucoin) placeOrder(amount, price string, pair CurrencyPair, orderSide 
 	if err != nil {
 		errCode := HTTP_ERR_CODE
 		errCode.OriginErrMsg = err.Error()
-		return nil, errCode
+		return nil, err
 	}
 
 	var resp map[string]interface{}
