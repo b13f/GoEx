@@ -210,7 +210,7 @@ func (bx *Bittrex) placeOrder(amount, price string, pair CurrencyPair, orderSide
 	req, _ := url.Parse(uri)
 	t := req.Query()
 
-	t.Set(`market`, pair.ToSymbol(`-`))
+	t.Set(`market`, pair.ToSymbol2(`-`))
 	t.Set(`quantity`, amount)
 	t.Set(`rate`, price)
 
