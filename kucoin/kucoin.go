@@ -36,18 +36,37 @@ func (ku *Kucoin) MarketBuy(amount, price string, currency CurrencyPair) (*Order
 func (ku *Kucoin) MarketSell(amount, price string, currency CurrencyPair) (*Order, error) {
 	panic("not implement")
 }
-func (ku *Kucoin) CancelOrder(orderId string, currency CurrencyPair) (bool, error) {
-	uri := fmt.Sprintf("%s/v1/cancel-order", ku.baseUrl)
 
-	headers := ku.getSign(`/v1/order`, map[string]string{
+func (ku *Kucoin) CancelOrder(orderId string, currency CurrencyPair) (bool, error) {
+	uri := fmt.Sprintf("%s/v1/cancel-order?symbol="+currency.ToSymbol(`-`), ku.baseUrl)
+
+	//if type is wrong still get SUCCESS
+	headers := ku.getSign(`/v1/cancel-order`, map[string]string{
+		"symbol":   currency.ToSymbol(`-`),
+		"orderOid": orderId,
+		//TODO: type is needed
+		"type": "BUY",
+	})
+
+	respBytes, err := HttpPostForm2(ku.client, uri, url.Values{
+		"orderOid": []string{orderId},
+		"type":     []string{"BUY"},
+	}, headers)
+
+	if err != nil {
+		errCode := HTTP_ERR_CODE
+		errCode.OriginErrMsg = err.Error()
+		return false, errCode
+	}
+
+	headers = ku.getSign(`/v1/cancel-order`, map[string]string{
 		"symbol":   currency.ToSymbol(`-`),
 		"orderOid": orderId,
 		//TODO: type is needed
 		"type": "SELL",
 	})
 
-	respBytes, err := HttpPostForm2(ku.client, uri, url.Values{
-		"symbol":   []string{currency.ToSymbol(`-`)},
+	respBytes, err = HttpPostForm2(ku.client, uri, url.Values{
 		"orderOid": []string{orderId},
 		"type":     []string{"SELL"},
 	}, headers)
@@ -69,12 +88,62 @@ func (ku *Kucoin) CancelOrder(orderId string, currency CurrencyPair) (bool, erro
 
 	return true, nil
 }
+
 func (ku *Kucoin) GetOneOrder(orderId string, currency CurrencyPair) (*Order, error) {
 	panic("not implement")
 }
+
 func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
-	panic("not implement")
+	uri := fmt.Sprintf("%s/v1/order/active-map?symbol="+currency.ToSymbol(`-`), ku.baseUrl)
+
+	headers := ku.getSign(`/v1/order/active-map`, map[string]string{
+		"symbol": currency.ToSymbol(`-`),
+	})
+
+	resp, err := HttpGet2(ku.client, uri, headers)
+
+	if err != nil {
+		errCode := HTTP_ERR_CODE
+		errCode.OriginErrMsg = err.Error()
+		return nil, err
+	}
+
+	if val, ok := resp["success"]; ok && !val.(bool) {
+		return nil, fmt.Errorf("%s", resp["message"].(string))
+	}
+
+	datamapAll := resp["data"].(map[string]interface{})
+	datamap := datamapAll["SELL"].([]interface{})
+	datamap = append(datamap,datamapAll["BUY"].([]interface{})...)
+
+	var orders []Order
+	for _, v := range datamap {
+		ordmap := v.(map[string]interface{})
+
+		ord := Order{
+			OrderID2:   ordmap["oid"].(string),
+			Amount:     ToFloat64(ordmap["dealAmount"]),
+			Price:      ToFloat64(ordmap["price"]),
+			DealAmount: ToFloat64(ordmap["pendingAmount"]),
+			OrderTime:  ToInt(ordmap["createdAt"]),
+		}
+
+		ord.Currency = currency
+
+		typeS := ordmap["direction"].(string)
+		switch typeS {
+		case "SELL":
+			ord.Side = SELL
+		case "BUY":
+			ord.Side = BUY
+		}
+
+		orders = append(orders, ord)
+	}
+
+	return orders, nil
 }
+
 func (ku *Kucoin) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize int) ([]Order, error) {
 	panic("not implement")
 }

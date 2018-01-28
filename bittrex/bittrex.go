@@ -42,7 +42,6 @@ func (bx *Bittrex) CancelOrder(orderId string, currency CurrencyPair) (bool, err
 	t := req.Query()
 
 	t.Set(`uuid`, orderId)
-
 	t.Set(`apikey`, bx.accessKey)
 	t.Set(`nonce`, fmt.Sprintf("%d", time.Now().UnixNano()))
 	req.RawQuery = t.Encode()
@@ -68,7 +67,61 @@ func (bx *Bittrex) GetOneOrder(orderId string, currency CurrencyPair) (*Order, e
 	panic("not implement")
 }
 func (bx *Bittrex) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
-	panic("not implement")
+	uri := fmt.Sprintf("%s/market/getopenorders", bx.baseUrl)
+
+	req, _ := url.Parse(uri)
+	t := req.Query()
+	t.Set(`apikey`, bx.accessKey)
+	t.Set(`nonce`, fmt.Sprintf("%d", time.Now().UnixNano()))
+	t.Set(`market`, currency.ToSymbol2("-"))
+	req.RawQuery = t.Encode()
+
+	headers := make(map[string]string)
+	headers[`apisign`] = bx.getSign(req.String())
+
+	resp, err := HttpGet2(bx.client, req.String(), headers)
+
+	if err != nil {
+		errCode := HTTP_ERR_CODE
+		errCode.OriginErrMsg = err.Error()
+		return nil, errCode
+	}
+
+	if val, ok := resp["success"]; ok && !val.(bool) {
+		return nil, fmt.Errorf("%s", resp["message"].(string))
+	}
+
+	datamap := resp["result"].([]interface{})
+	var orders []Order
+	//bittrex time format
+	layout := "2006-01-02T15:04:05.000"
+	for _, v := range datamap {
+		ordmap := v.(map[string]interface{})
+		t, _ := time.Parse(layout, ordmap["Opened"].(string))
+
+		ord := Order{
+			OrderID2:   ordmap["OrderUuid"].(string),
+			Amount:     ToFloat64(ordmap["Quantity"]),
+			Price:      ToFloat64(ordmap["Limit"]),
+			DealAmount: ToFloat64(ordmap["QuantityRemaining"]),
+			Fee:        ToFloat64(ordmap["CommissionPaid"]),
+			OrderTime:  int(t.UnixNano()),
+		}
+
+		ord.Currency = currency
+
+		typeS := ordmap["OrderType"].(string)
+		switch typeS {
+		case "LIMIT_SELL":
+			ord.Side = SELL
+		case "LIMIT_BUY":
+			ord.Side = BUY
+		}
+
+		orders = append(orders, ord)
+	}
+
+	return orders, nil
 }
 func (bx *Bittrex) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize int) ([]Order, error) {
 	panic("not implement")
