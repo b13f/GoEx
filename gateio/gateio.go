@@ -2,7 +2,7 @@ package gateio
 
 import (
 	"fmt"
-	. "github.com/nntaoli-project/GoEx"
+	. "github.com/thbourlove/GoEx"
 	"net/http"
 	"sort"
 	"strings"

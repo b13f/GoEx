@@ -2,7 +2,7 @@ package coincheck
 
 import (
 	"fmt"
-	. "github.com/nntaoli-project/GoEx"
+	. "github.com/thbourlove/GoEx"
 	"log"
 	"net/http"
 	//"strconv"
