@@ -575,7 +575,7 @@ func (ok *OKCoinCN_API) GetTrades(currencyPair CurrencyPair, since int64) ([]Tra
 	return trades, nil
 }
 
-func (ok *OKEx) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, error) {
+func (ok *OKCoinCN_API) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, error) {
 	c, resp, err := websocket.DefaultDialer.Dial("wss://real.okex.com:10440/websocket/okexapi", nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "dial websocket")
@@ -660,7 +660,7 @@ func (ok *OKEx) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, err
 	return depth, done, nil
 }
 
-func (ok *OKEx) GetTradeChan(pair CurrencyPair) (chan []Trade, chan struct{}, error) {
+func (ok *OKCoinCN_API) GetTradeChan(pair CurrencyPair) (chan []Trade, chan struct{}, error) {
 	c, resp, err := websocket.DefaultDialer.Dial("wss://real.okex.com:10440/websocket/okexapi", nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "dial websocket")
