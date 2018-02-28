@@ -1,14 +1,20 @@
 package huobi
 
 import (
+	"compress/gzip"
 	"encoding/json"
-	"errors"
 	"fmt"
-	. "github.com/thbourlove/GoEx"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+
+	"github.com/gorilla/websocket"
+	. "github.com/thbourlove/GoEx"
 )
 
 type HuoBi_V2 struct {
@@ -462,4 +468,83 @@ func (hbV2 *HuoBi_V2) toJson(params url.Values) string {
 	}
 	jsonData, _ := json.Marshal(parammap)
 	return string(jsonData)
+}
+
+func (hb *HuoBi_V2) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, error) {
+	c, resp, err := websocket.DefaultDialer.Dial("wss://api.huobi.pro/ws", nil)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "dial websocket")
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "read body")
+	}
+	fmt.Println(body)
+	c.WriteJSON(map[string]interface{}{
+		"sub":  fmt.Sprintf("market.%s.depth.%s", strings.ToLower(pair.ToSymbol("")), "step0"),
+		"id":   "thb",
+		"pick": []string{"bids.100", "asks.100"},
+	})
+
+	done := make(chan struct{})
+	depth := make(chan *Depth)
+
+	go func() {
+		defer c.Close()
+		defer close(done)
+		for {
+			select {
+			default:
+				_, reader, err := c.NextReader()
+				if err != nil {
+					log.Printf("get next reader: %v\n", err)
+					return
+					continue
+				}
+				gzipReader, err := gzip.NewReader(reader)
+				if err != nil {
+					log.Printf("new gzip reader: %v\n", err)
+					continue
+				}
+				jsonReader := json.NewDecoder(gzipReader)
+
+				var msgmap map[string]interface{}
+				if err := jsonReader.Decode(&msgmap); err != nil {
+					log.Printf("decode json: %v\n", err)
+					continue
+				}
+
+				tick, ok := msgmap["tick"].(map[string]interface{})
+				if !ok {
+					log.Printf("msg: %v\n", msgmap)
+					continue
+				}
+
+				bids, _ := tick["bids"].([]interface{})
+				asks, _ := tick["asks"].([]interface{})
+
+				d := new(Depth)
+				for _, r := range asks {
+					var dr DepthRecord
+					rr := r.([]interface{})
+					dr.Price = ToFloat64(rr[0])
+					dr.Amount = ToFloat64(rr[1])
+					d.AskList = append(d.AskList, dr)
+				}
+
+				for _, r := range bids {
+					var dr DepthRecord
+					rr := r.([]interface{})
+					dr.Price = ToFloat64(rr[0])
+					dr.Amount = ToFloat64(rr[1])
+					d.BidList = append(d.BidList, dr)
+				}
+
+				depth <- d
+			}
+		}
+	}()
+
+	return depth, done, nil
 }
