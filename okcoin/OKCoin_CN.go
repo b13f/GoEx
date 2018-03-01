@@ -34,11 +34,22 @@ const (
 )
 
 type OKCoinCN_API struct {
-	client       *http.Client
-	api_key      string
-	secret_key   string
-	api_base_url string
+	client         *http.Client
+	api_key        string
+	secret_key     string
+	api_base_url   string
+	c              *websocket.Conn
+	depthChanMap   map[string]chan *Depth
+	tradeChanMap   map[string]chan []Trade
+	channelMap     map[string]int
+	writeMsgChan   chan interface{}
+	writeErrorChan chan error
 }
+
+const (
+	DEPTH_CHANNEL = iota
+	TRADE_CHANNEL
+)
 
 var _INERNAL_KLINE_PERIOD_CONVERTER = map[int]string{
 	KLINE_PERIOD_1MIN:  "1min",
@@ -67,7 +78,23 @@ var _INERNAL_KLINE_PERIOD_CONVERTER = map[int]string{
 //}
 
 func New(client *http.Client, api_key, secret_key string) *OKCoinCN_API {
-	return &OKCoinCN_API{client, api_key, secret_key, API_BASE_URL}
+	return &OKCoinCN_API{
+		client:         client,
+		api_key:        api_key,
+		secret_key:     secret_key,
+		api_base_url:   API_BASE_URL,
+		tradeChanMap:   map[string]chan []Trade{},
+		depthChanMap:   map[string]chan *Depth{},
+		channelMap:     map[string]int{},
+		writeMsgChan:   make(chan interface{}),
+		writeErrorChan: make(chan error),
+	}
+}
+
+func NewWithBaseURL(client *http.Client, api_key, secret_key, api_base_url string) *OKCoinCN_API {
+	ok := New(client, api_key, secret_key)
+	ok.api_base_url = api_base_url
+	return ok
 }
 
 func (ctx *OKCoinCN_API) buildPostForm(postForm *url.Values) error {
@@ -575,171 +602,219 @@ func (ok *OKCoinCN_API) GetTrades(currencyPair CurrencyPair, since int64) ([]Tra
 	return trades, nil
 }
 
-func (ok *OKCoinCN_API) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, error) {
-	c, resp, err := websocket.DefaultDialer.Dial("wss://real.okex.com:10440/websocket/okexapi", nil)
+func (ok *OKCoinCN_API) connectWebsocket() error {
+	url := "wss://real.okex.com:10440/websocket/okexapi"
+	var err error
+	ok.c, _, err = websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "dial websocket")
+		return errors.Wrap(err, fmt.Sprintf("websocket dial %s", url))
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "read body")
-	}
-	fmt.Println(body)
-	c.WriteJSON(map[string]interface{}{
-		"event":   "addChannel",
-		"channel": fmt.Sprintf("ok_sub_spot_%s_depth", strings.ToLower(pair.ToSymbol("_"))),
-	})
+	return nil
+}
 
-	done := make(chan struct{})
-	depth := make(chan *Depth)
+func dataToDepth(data interface{}) (*Depth, error) {
+	var isok bool
+	var bids, asks []interface{}
+	var depthdata map[string]interface{}
+	if depthdata, isok = data.(map[string]interface{}); !isok {
+		return nil, errors.Errorf("data type is not map[string]interface{}: %v\n", data)
+	}
+	bids, _ = depthdata["bids"].([]interface{})
+	asks, _ = depthdata["asks"].([]interface{})
+
+	d := new(Depth)
+	for _, r := range asks {
+		var dr DepthRecord
+		rr := r.([]interface{})
+		dr.Price = ToFloat64(rr[0])
+		dr.Amount = ToFloat64(rr[1])
+		d.AskList = append(d.AskList, dr)
+	}
+
+	for _, r := range bids {
+		var dr DepthRecord
+		rr := r.([]interface{})
+		dr.Price = ToFloat64(rr[0])
+		dr.Amount = ToFloat64(rr[1])
+		d.BidList = append(d.BidList, dr)
+	}
+	return d, nil
+}
+
+func dataToTrades(data interface{}) ([]Trade, error) {
+	var tradesdata []interface{}
+	var trades []Trade
+	var isok bool
+	if tradesdata, isok = data.([]interface{}); !isok {
+		return nil, errors.Errorf("data type is not []interface{} %v\n", tradesdata)
+	}
+
+	for _, d := range tradesdata {
+		dd := d.([]interface{})
+		t := Trade{}
+		t.Tid = ToInt64(dd[0])
+		t.Price = ToFloat64(dd[1])
+		t.Amount = ToFloat64(dd[2])
+
+		now := time.Now()
+		timeStr := dd[3].(string)
+		timeMeta := strings.Split(timeStr, ":")
+		h, _ := strconv.Atoi(timeMeta[0])
+		m, _ := strconv.Atoi(timeMeta[1])
+		s, _ := strconv.Atoi(timeMeta[2])
+		//临界点处理
+		if now.Hour() == 0 {
+			if h <= 23 && h >= 20 {
+				pre := now.AddDate(0, 0, -1)
+				t.Date = time.Date(pre.Year(), pre.Month(), pre.Day(), h, m, s, 0, time.Local).Unix() * 1000
+			} else if h == 0 {
+				t.Date = time.Date(now.Year(), now.Month(), now.Day(), h, m, s, 0, time.Local).Unix() * 1000
+			}
+		} else {
+			t.Date = time.Date(now.Year(), now.Month(), now.Day(), h, m, s, 0, time.Local).Unix() * 1000
+		}
+
+		t.Type = dd[4].(string)
+		trades = append(trades, t)
+	}
+	return trades, nil
+}
+
+func (ok *OKCoinCN_API) RunWebsocket() error {
+	if err := ok.connectWebsocket(); err != nil {
+		return err
+	}
 
 	go func() {
-		defer c.Close()
-		defer close(done)
-		ticker := time.NewTicker(time.Duration(1) * time.Second)
+		ticker := time.NewTicker(time.Duration(5) * time.Second)
 		for {
 			select {
 			case <-ticker.C:
-				log.Printf("depth next ticker\n")
-				err := c.WriteJSON(map[string]string{
+				err := ok.c.WriteJSON(map[string]string{
 					"event": "ping",
 				})
 				if err != nil {
 					log.Printf("write ping: %v\n", err)
-				} else {
-					log.Printf("write ping success.")
+					if err := ok.connectWebsocket(); err != nil {
+						log.Printf("reconnect websocket failed: %v\n", err)
+					}
 				}
-			default:
-				log.Printf("depth next reader\n")
-				_, reader, err := c.NextReader()
-				if err != nil {
-					log.Printf("get next reader: %v\n", err)
-					return
-					continue
-				}
-				jsonReader := json.NewDecoder(reader)
-
-				var msgmap []map[string]interface{}
-				if err := jsonReader.Decode(&msgmap); err != nil {
-					log.Printf("decode json: %v\n", err)
-					continue
-				}
-
-				tick, ok := msgmap[0]["data"].(map[string]interface{})
-				if !ok {
-					log.Printf("msg: %v\n", msgmap)
-					continue
-				}
-
-				bids, _ := tick["bids"].([]interface{})
-				asks, _ := tick["asks"].([]interface{})
-
-				d := new(Depth)
-				for _, r := range asks {
-					var dr DepthRecord
-					rr := r.([]interface{})
-					dr.Price = ToFloat64(rr[0])
-					dr.Amount = ToFloat64(rr[1])
-					d.AskList = append(d.AskList, dr)
-				}
-
-				for _, r := range bids {
-					var dr DepthRecord
-					rr := r.([]interface{})
-					dr.Price = ToFloat64(rr[0])
-					dr.Amount = ToFloat64(rr[1])
-					d.BidList = append(d.BidList, dr)
-				}
-
-				depth <- d
+			case msg := <-ok.writeMsgChan:
+				ok.writeErrorChan <- ok.c.WriteJSON(msg)
 			}
 		}
 	}()
 
+	msgChan := make(chan []byte)
+
+	go func() {
+		for {
+			_, msg, err := ok.c.ReadMessage()
+			if err != nil {
+				log.Printf("read message: %v\n", err)
+			}
+			if string(msg) != "{\"event\":\"pong\"}" {
+				msgChan <- msg
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case msg := <-msgChan:
+				var msgmaplist []map[string]interface{}
+
+				if err := json.Unmarshal(msg, &msgmaplist); err != nil {
+					log.Printf("unmarshal: %v msg: %s\n", string(msg), err)
+					continue
+				}
+
+				if len(msgmaplist) == 0 {
+					log.Printf("length of msg is zero.")
+					continue
+				}
+
+				for _, msgmap := range msgmaplist {
+					var isok bool
+					var channel string
+					var channelType int
+
+					if channel, isok = msgmap["channel"].(string); !isok {
+						log.Printf("miss channel, msg map: %v\n", msgmap)
+						continue
+					}
+
+					if channel == "addChannel" {
+						//log.Printf("add %s channel success\n", msgmap["data"].(map[string]interface{})["channel"])
+						continue
+					}
+
+					if channelType, isok = ok.channelMap[channel]; !isok {
+						log.Printf("receive unknown channel(%s) message(%v)\n", channel, msgmap)
+						continue
+					}
+
+					if channelType == DEPTH_CHANNEL {
+						d, err := dataToDepth(msgmap["data"])
+						if err != nil {
+							log.Printf("convert data to depth: %v\n", err)
+							continue
+						}
+						ok.depthChanMap[channel] <- d
+					} else if channelType == TRADE_CHANNEL {
+						t, err := dataToTrades(msgmap["data"])
+						if err != nil {
+							log.Printf("convert data to trades: %v\n", err)
+							continue
+						}
+						ok.tradeChanMap[channel] <- t
+					}
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (ok *OKCoinCN_API) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, error) {
+	channel := fmt.Sprintf("ok_sub_spot_%s_depth", strings.ToLower(pair.ToSymbol("_")))
+	depth := make(chan *Depth)
+	ok.depthChanMap[channel] = depth
+	ok.channelMap[channel] = DEPTH_CHANNEL
+
+	msg := map[string]interface{}{
+		"event":   "addChannel",
+		"channel": channel,
+	}
+
+	ok.writeMsgChan <- msg
+
+	if err := <-ok.writeErrorChan; err != nil {
+		return nil, nil, errors.Wrapf(err, "write depth msg %v", msg)
+	}
+
+	done := make(chan struct{})
 	return depth, done, nil
 }
 
 func (ok *OKCoinCN_API) GetTradeChan(pair CurrencyPair) (chan []Trade, chan struct{}, error) {
-	c, resp, err := websocket.DefaultDialer.Dial("wss://real.okex.com:10440/websocket/okexapi", nil)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "dial websocket")
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "read body")
-	}
-	fmt.Println(body)
-	c.WriteJSON(map[string]interface{}{
+	channel := fmt.Sprintf("ok_sub_spot_%s_deals", strings.ToLower(pair.ToSymbol("_")))
+	trade := make(chan []Trade)
+	ok.tradeChanMap[channel] = trade
+	ok.channelMap[channel] = TRADE_CHANNEL
+
+	msg := map[string]interface{}{
 		"event":   "addChannel",
-		"channel": fmt.Sprintf("ok_sub_spot_%s_deals", strings.ToLower(pair.ToSymbol("_"))),
-	})
+		"channel": channel,
+	}
+
+	ok.writeMsgChan <- msg
+	if err := <-ok.writeErrorChan; err != nil {
+		return nil, nil, errors.Wrapf(err, "write trade msg %v", msg)
+	}
 
 	done := make(chan struct{})
-	tradeChan := make(chan []Trade)
-
-	go func() {
-		defer c.Close()
-		defer close(done)
-		for {
-			select {
-			default:
-				_, reader, err := c.NextReader()
-				if err != nil {
-					log.Printf("get next reader: %v\n", err)
-					return
-					continue
-				}
-				jsonReader := json.NewDecoder(reader)
-
-				var msgmap []map[string]interface{}
-				if err := jsonReader.Decode(&msgmap); err != nil {
-					log.Printf("decode json: %v\n", err)
-					continue
-				}
-
-				data, ok := msgmap[0]["data"].([]interface{})
-				if !ok {
-					log.Printf("get trade msg: %v\n", msgmap[0]["data"])
-					continue
-				}
-
-				trades := []Trade{}
-
-				for _, d := range data {
-					dd := d.([]interface{})
-					t := Trade{}
-					t.Tid = ToInt64(dd[0])
-					t.Price = ToFloat64(dd[1])
-					t.Amount = ToFloat64(dd[2])
-
-					now := time.Now()
-					timeStr := dd[3].(string)
-					timeMeta := strings.Split(timeStr, ":")
-					h, _ := strconv.Atoi(timeMeta[0])
-					m, _ := strconv.Atoi(timeMeta[1])
-					s, _ := strconv.Atoi(timeMeta[2])
-					//临界点处理
-					if now.Hour() == 0 {
-						if h <= 23 && h >= 20 {
-							pre := now.AddDate(0, 0, -1)
-							t.Date = time.Date(pre.Year(), pre.Month(), pre.Day(), h, m, s, 0, time.Local).Unix() * 1000
-						} else if h == 0 {
-							t.Date = time.Date(now.Year(), now.Month(), now.Day(), h, m, s, 0, time.Local).Unix() * 1000
-						}
-					} else {
-						t.Date = time.Date(now.Year(), now.Month(), now.Day(), h, m, s, 0, time.Local).Unix() * 1000
-					}
-
-					t.Type = dd[4].(string)
-					trades = append(trades, t)
-				}
-
-				tradeChan <- trades
-			}
-		}
-	}()
-
-	return tradeChan, done, nil
+	return trade, done, nil
 }
