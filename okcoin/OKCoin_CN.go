@@ -34,14 +34,16 @@ const (
 )
 
 type OKCoinCN_API struct {
-	client         *http.Client
-	api_key        string
-	secret_key     string
-	api_base_url   string
-	c              *websocket.Conn
-	depthChanMap   map[string]chan *Depth
-	tradeChanMap   map[string]chan []Trade
-	channelMap     map[string]int
+	client          *http.Client
+	api_key         string
+	secret_key      string
+	api_base_url    string
+	c               *websocket.Conn
+	depthChanMap    map[string]chan *Depth
+	tradeChanMap    map[string]chan []Trade
+	channelMap      map[string]int
+	channelErrorMap map[string]chan error
+
 	writeMsgChan   chan interface{}
 	writeErrorChan chan error
 }
@@ -79,15 +81,16 @@ var _INERNAL_KLINE_PERIOD_CONVERTER = map[int]string{
 
 func New(client *http.Client, api_key, secret_key string) *OKCoinCN_API {
 	return &OKCoinCN_API{
-		client:         client,
-		api_key:        api_key,
-		secret_key:     secret_key,
-		api_base_url:   API_BASE_URL,
-		tradeChanMap:   map[string]chan []Trade{},
-		depthChanMap:   map[string]chan *Depth{},
-		channelMap:     map[string]int{},
-		writeMsgChan:   make(chan interface{}),
-		writeErrorChan: make(chan error),
+		client:          client,
+		api_key:         api_key,
+		secret_key:      secret_key,
+		api_base_url:    API_BASE_URL,
+		tradeChanMap:    map[string]chan []Trade{},
+		depthChanMap:    map[string]chan *Depth{},
+		channelMap:      map[string]int{},
+		writeMsgChan:    make(chan interface{}),
+		writeErrorChan:  make(chan error),
+		channelErrorMap: map[string]chan error{},
 	}
 }
 
@@ -713,9 +716,10 @@ func (ok *OKCoinCN_API) RunWebsocket() error {
 			if err != nil {
 				log.Printf("read message: %v\n", err)
 			}
-			if string(msg) != "{\"event\":\"pong\"}" {
-				msgChan <- msg
+			if string(msg) == "{\"event\":\"pong\"}" {
+				continue
 			}
+			msgChan <- msg
 		}
 	}()
 
@@ -746,7 +750,15 @@ func (ok *OKCoinCN_API) RunWebsocket() error {
 					}
 
 					if channel == "addChannel" {
-						//log.Printf("add %s channel success\n", msgmap["data"].(map[string]interface{})["channel"])
+						data := msgmap["data"].(map[string]interface{})
+						channelName := data["channel"].(string)
+						errorChan := ok.channelErrorMap[channelName]
+						//log.Println("add channel result: ", data)
+						if result := data["result"].(bool); !result {
+							errorChan <- errors.Errorf("add channel failed error code(%v)", data["errorcode"])
+						} else {
+							errorChan <- nil
+						}
 						continue
 					}
 
@@ -783,6 +795,8 @@ func (ok *OKCoinCN_API) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struc
 	depth := make(chan *Depth)
 	ok.depthChanMap[channel] = depth
 	ok.channelMap[channel] = DEPTH_CHANNEL
+	errorChan := make(chan error)
+	ok.channelErrorMap[channel] = errorChan
 
 	msg := map[string]interface{}{
 		"event":   "addChannel",
@@ -795,6 +809,10 @@ func (ok *OKCoinCN_API) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struc
 		return nil, nil, errors.Wrapf(err, "write depth msg %v", msg)
 	}
 
+	if err := <-ok.channelErrorMap[channel]; err != nil {
+		return nil, nil, errors.Wrapf(err, "sub %s channel failed", channel)
+	}
+
 	done := make(chan struct{})
 	return depth, done, nil
 }
@@ -804,6 +822,8 @@ func (ok *OKCoinCN_API) GetTradeChan(pair CurrencyPair) (chan []Trade, chan stru
 	trade := make(chan []Trade)
 	ok.tradeChanMap[channel] = trade
 	ok.channelMap[channel] = TRADE_CHANNEL
+	errorChan := make(chan error)
+	ok.channelErrorMap[channel] = errorChan
 
 	msg := map[string]interface{}{
 		"event":   "addChannel",
@@ -813,6 +833,10 @@ func (ok *OKCoinCN_API) GetTradeChan(pair CurrencyPair) (chan []Trade, chan stru
 	ok.writeMsgChan <- msg
 	if err := <-ok.writeErrorChan; err != nil {
 		return nil, nil, errors.Wrapf(err, "write trade msg %v", msg)
+	}
+
+	if err := <-ok.channelErrorMap[channel]; err != nil {
+		return nil, nil, errors.Wrapf(err, "sub %s channel failed", channel)
 	}
 
 	done := make(chan struct{})
