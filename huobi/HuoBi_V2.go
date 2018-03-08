@@ -1,10 +1,11 @@
 package huobi
 
 import (
+	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -13,11 +14,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/gorilla/websocket"
 	. "github.com/thbourlove/GoEx"
 )
 
 type HuoBi_V2 struct {
+	*RealTimeExchange
 	httpClient *http.Client
 	accountId,
 	baseUrl,
@@ -33,7 +34,15 @@ type response struct {
 }
 
 func NewV2(httpClient *http.Client, accessKey, secretKey, clientId string) *HuoBi_V2 {
-	return &HuoBi_V2{httpClient, clientId, "https://be.huobi.com", accessKey, secretKey}
+	hb := &HuoBi_V2{
+		httpClient: httpClient,
+		accountId:  clientId,
+		baseUrl:    "https://be.huobi.com",
+		accessKey:  accessKey,
+		secretKey:  secretKey,
+	}
+	hb.RealTimeExchange = NewRealTimeExchange(hb)
+	return hb
 }
 
 func (hbV2 *HuoBi_V2) GetAccountId() (string, error) {
@@ -470,38 +479,131 @@ func (hbV2 *HuoBi_V2) toJson(params url.Values) string {
 	return string(jsonData)
 }
 
-func (hb *HuoBi_V2) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{}, error) {
-	c, resp, err := websocket.DefaultDialer.Dial("wss://api.huobi.pro/ws", nil)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "dial websocket")
+func (hb *HuoBi_V2) GenChannel(pair CurrencyPair, channelType int) string {
+	var suffix string
+	switch channelType {
+	case DEPTH_CHANNEL:
+		suffix = "depth.step0"
+	case TRADE_CHANNEL:
+		suffix = "trade.detail"
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "read body")
+	return fmt.Sprintf("market.%s.%s", strings.ToLower(pair.ToSymbol("")), suffix)
+}
+
+func (hb *HuoBi_V2) GenSubMessage(channel string) interface{} {
+	return map[string]interface{}{
+		"sub": channel,
+		"id":  channel,
 	}
-	fmt.Println(body)
-	c.WriteJSON(map[string]interface{}{
-		"sub":  fmt.Sprintf("market.%s.depth.%s", strings.ToLower(pair.ToSymbol("")), "step0"),
-		"id":   "thb",
-		"pick": []string{"bids.100", "asks.100"},
-	})
+}
 
-	done := make(chan struct{})
-	depth := make(chan *Depth)
+func (hb *HuoBi_V2) GetWebsocketURL() string {
+	return "wss://api.huobi.pro/ws"
+}
 
-	go func() {
-		defer c.Close()
-		defer close(done)
+func (hb *HuoBi_V2) GetKeepAliveHandler() KeepAliveHandler {
+	return nil
+}
+
+func dataToDepth(data interface{}) (*Depth, error) {
+	var isok bool
+	var bids, asks []interface{}
+	var depthdata map[string]interface{}
+	if depthdata, isok = data.(map[string]interface{}); !isok {
+		return nil, errors.Errorf("data type is not map[string]interface{}: %v\n", data)
+	}
+	bids, _ = depthdata["bids"].([]interface{})
+	asks, _ = depthdata["asks"].([]interface{})
+
+	d := new(Depth)
+	for _, r := range asks {
+		var dr DepthRecord
+		rr := r.([]interface{})
+		dr.Price = ToFloat64(rr[0])
+		dr.Amount = ToFloat64(rr[1])
+		d.AskList = append(d.AskList, dr)
+	}
+
+	for _, r := range bids {
+		var dr DepthRecord
+		rr := r.([]interface{})
+		dr.Price = ToFloat64(rr[0])
+		dr.Amount = ToFloat64(rr[1])
+		d.BidList = append(d.BidList, dr)
+	}
+	return d, nil
+}
+
+func handleDepthData(ctx context.Context, depthDataChan chan interface{}, depthChan chan *Depth) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case data := <-depthDataChan:
+			d, err := dataToDepth(data)
+			// 火币拿到的ask列表是从小到大排列的，需要反转过来
+			for i, j := 0, len(d.AskList)-1; i < j; i, j = i+1, j-1 {
+				d.AskList[i], d.AskList[j] = d.AskList[j], d.AskList[i]
+			}
+			if err != nil {
+				log.Printf("convert data to depth: %v\n", err)
+				continue
+			}
+			depthChan <- d
+		}
+	}
+}
+
+func dataToTrades(data interface{}) ([]Trade, error) {
+	tradeData, isok := data.([]interface{})
+	if !isok {
+		return nil, errors.Errorf("data type is not []interface{}: %v\n", data)
+	}
+	var trades []Trade
+	for _, t := range tradeData {
+		tr := t.(map[string]interface{})
+		trade := Trade{}
+		trade.Amount = tr["amount"].(float64)
+		trade.Price = tr["price"].(float64)
+		if tr["direction"].(string) == "buy" {
+			trade.Type = "bid"
+		} else {
+			trade.Type = "ask"
+		}
+		//trade.Tid = int64(tr["id"].(float64))
+		trade.Date = int64(tr["ts"].(float64))
+		trades = append(trades, trade)
+	}
+	return trades, nil
+}
+
+func handleTradeData(ctx context.Context, tradeDataChan chan interface{}, tradeChan chan []Trade) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case data := <-tradeDataChan:
+			d, err := dataToTrades(data)
+			if err != nil {
+				log.Printf("convert data to depth: %v\n", err)
+				continue
+			}
+			tradeChan <- d
+		}
+	}
+}
+
+func (hb *HuoBi_V2) GetMessageHandler() MessageHandler {
+	return func(ctx context.Context, realTimeExchange *RealTimeExchange, msgChan chan []byte) {
+		depthDataChanMap := map[string]chan interface{}{}
+		tradeDataChanMap := map[string]chan interface{}{}
 		for {
 			select {
-			default:
-				_, reader, err := c.NextReader()
-				if err != nil {
-					log.Printf("get next reader: %v\n", err)
-					return
-					continue
-				}
+			case <-ctx.Done():
+				close(msgChan)
+				return
+			case msg := <-msgChan:
+				reader := bytes.NewReader(msg)
 				gzipReader, err := gzip.NewReader(reader)
 				if err != nil {
 					log.Printf("new gzip reader: %v\n", err)
@@ -515,36 +617,90 @@ func (hb *HuoBi_V2) GetDepthChan(pair CurrencyPair) (chan *Depth, chan struct{},
 					continue
 				}
 
-				tick, ok := msgmap["tick"].(map[string]interface{})
-				if !ok {
-					log.Printf("msg: %v\n", msgmap)
+				if ping, isok := msgmap["ping"]; isok {
+					err := realTimeExchange.WriteJSONMessage(map[string]interface{}{"pong": ping})
+					if err != nil {
+						log.Printf("write pong %v\n", err)
+					}
 					continue
 				}
 
-				bids, _ := tick["bids"].([]interface{})
-				asks, _ := tick["asks"].([]interface{})
-
-				d := new(Depth)
-				for _, r := range asks {
-					var dr DepthRecord
-					rr := r.([]interface{})
-					dr.Price = ToFloat64(rr[0])
-					dr.Amount = ToFloat64(rr[1])
-					d.AskList = append(d.AskList, dr)
+				if channelName, isok := msgmap["id"].(string); isok {
+					if errorChan, err := realTimeExchange.GetSubChannelErrorChan(channelName); err != nil {
+						log.Printf("unknown channel %s\n", channelName)
+					} else {
+						if result := msgmap["status"].(string); result != "ok" {
+							errorChan <- errors.Errorf("add channel failed error code(%v)", msgmap["err-msg"])
+						} else {
+							if channelType, err := realTimeExchange.GetChannelType(channelName); err != nil {
+								errorChan <- errors.Wrap(err, "get channel type")
+							} else {
+								if channelType == DEPTH_CHANNEL {
+									if depthChan, err := realTimeExchange.GetDepthChan(channelName); err != nil {
+										errorChan <- errors.Wrap(err, "get depth chan")
+									} else {
+										depthDataChanMap[channelName] = make(chan interface{})
+										go handleDepthData(ctx, depthDataChanMap[channelName], depthChan)
+									}
+								} else if channelType == TRADE_CHANNEL {
+									if tradeChan, err := realTimeExchange.GetTradeChan(channelName); err != nil {
+										errorChan <- errors.Wrap(err, "get trade chan")
+									} else {
+										tradeDataChanMap[channelName] = make(chan interface{})
+										go handleTradeData(ctx, tradeDataChanMap[channelName], tradeChan)
+									}
+								}
+								errorChan <- nil
+							}
+						}
+					}
+					continue
 				}
 
-				for _, r := range bids {
-					var dr DepthRecord
-					rr := r.([]interface{})
-					dr.Price = ToFloat64(rr[0])
-					dr.Amount = ToFloat64(rr[1])
-					d.BidList = append(d.BidList, dr)
+				if channelName, isok := msgmap["ch"].(string); isok {
+					if channelType, err := realTimeExchange.GetChannelType(channelName); err != nil {
+						log.Printf("receive unknown channel(%s) message(%v)\n", channelName, msgmap)
+					} else {
+						if channelType == DEPTH_CHANNEL {
+							if data, isok := msgmap["tick"]; isok {
+								depthDataChanMap[channelName] <- data
+							} else {
+								log.Printf("miss tick in msg %v\n", msgmap)
+							}
+						} else if channelType == TRADE_CHANNEL {
+							if tick, isok := msgmap["tick"]; isok {
+								if data, isok := tick.(map[string]interface{})["data"]; isok {
+									tradeDataChanMap[channelName] <- data
+								} else {
+									log.Printf("miss data in tick %v\n", msgmap)
+								}
+							} else {
+								log.Printf("miss tick in msg %v\n", msgmap)
+							}
+						}
+					}
+					continue
 				}
 
-				depth <- d
+				log.Println("unknown msgmap:", msgmap)
 			}
 		}
-	}()
+	}
+}
 
-	return depth, done, nil
+func (hb *HuoBi_V2) GetCurrencies() ([]Currency, error) {
+	currencyUrl := hb.baseUrl + "/v1/common/currencys"
+	body, err := HttpGet(hb.httpClient, currencyUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	var currencies []Currency
+	data := body["data"].([]interface{})
+	for _, d := range data {
+		c := Currency{Symbol: strings.ToUpper(d.(string))}
+		currencies = append(currencies, c)
+	}
+
+	return currencies, nil
 }

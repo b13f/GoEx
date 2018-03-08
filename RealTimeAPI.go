@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/gorilla/websocket"
 
@@ -31,6 +32,7 @@ type RealTimeExchange struct {
 	exchange RealTimeProtocol
 
 	c                  *websocket.Conn
+	mu                 sync.RWMutex
 	depthChanMap       map[string]chan *Depth
 	tradeChanMap       map[string]chan []Trade
 	subChannelErrorMap map[string]chan error
@@ -56,6 +58,8 @@ func NewRealTimeExchange(exchange RealTimeProtocol) *RealTimeExchange {
 }
 
 func (realTimeExchange *RealTimeExchange) GetChannelType(channel string) (int, error) {
+	realTimeExchange.mu.RLock()
+	defer realTimeExchange.mu.RUnlock()
 	if channelType, isok := realTimeExchange.channelTypeMap[channel]; isok {
 		return channelType, nil
 	} else {
@@ -64,6 +68,8 @@ func (realTimeExchange *RealTimeExchange) GetChannelType(channel string) (int, e
 }
 
 func (realTimeExchange *RealTimeExchange) GetSubChannelErrorChan(channel string) (chan error, error) {
+	realTimeExchange.mu.RLock()
+	defer realTimeExchange.mu.RUnlock()
 	if errorChan, isok := realTimeExchange.subChannelErrorMap[channel]; isok {
 		return errorChan, nil
 	} else {
@@ -72,6 +78,8 @@ func (realTimeExchange *RealTimeExchange) GetSubChannelErrorChan(channel string)
 }
 
 func (realTimeExchange *RealTimeExchange) GetTradeChan(channel string) (chan []Trade, error) {
+	realTimeExchange.mu.RLock()
+	defer realTimeExchange.mu.RUnlock()
 	if tradeChan, isok := realTimeExchange.tradeChanMap[channel]; isok {
 		return tradeChan, nil
 	} else {
@@ -80,6 +88,8 @@ func (realTimeExchange *RealTimeExchange) GetTradeChan(channel string) (chan []T
 }
 
 func (realTimeExchange *RealTimeExchange) GetDepthChan(channel string) (chan *Depth, error) {
+	realTimeExchange.mu.RLock()
+	defer realTimeExchange.mu.RUnlock()
 	if depthChan, isok := realTimeExchange.depthChanMap[channel]; isok {
 		return depthChan, nil
 	} else {
@@ -90,20 +100,25 @@ func (realTimeExchange *RealTimeExchange) GetDepthChan(channel string) (chan *De
 func (realTimeExchange *RealTimeExchange) WriteJSONMessage(msg interface{}) error {
 	realTimeExchange.writeMsgChan <- msg
 	if err := <-realTimeExchange.writeErrorChan; err != nil {
+		log.Println("receive error")
 		return errors.Wrapf(err, "write to chan %v", msg)
 	}
 	return nil
 }
 
-func (realTimeExchange *RealTimeExchange) SubChannel(channel string) error {
-	realTimeExchange.subChannelErrorMap[channel] = make(chan error)
+func (realTimeExchange *RealTimeExchange) subChannel(channel string) error {
+	subChannelErrorChan := make(chan error)
+	realTimeExchange.mu.Lock()
+	realTimeExchange.subChannelErrorMap[channel] = subChannelErrorChan
+	realTimeExchange.mu.Unlock()
 
 	msg := realTimeExchange.exchange.GenSubMessage(channel)
 	if err := realTimeExchange.WriteJSONMessage(msg); err != nil {
 		return errors.Wrap(err, "write json message")
 	}
 
-	if err := <-realTimeExchange.subChannelErrorMap[channel]; err != nil {
+	if err := <-subChannelErrorChan; err != nil {
+		log.Println("recieve sub channel error")
 		return errors.Wrapf(err, "sub %s channel failed", channel)
 	}
 
@@ -112,18 +127,23 @@ func (realTimeExchange *RealTimeExchange) SubChannel(channel string) error {
 
 func (realTimeExchange *RealTimeExchange) ListenDepth(pair CurrencyPair, depth chan *Depth) error {
 	channel := realTimeExchange.exchange.GenChannel(pair, DEPTH_CHANNEL)
+	realTimeExchange.mu.Lock()
 	realTimeExchange.depthChanMap[channel] = depth
 	realTimeExchange.channelTypeMap[channel] = DEPTH_CHANNEL
+	realTimeExchange.mu.Unlock()
 
-	return realTimeExchange.SubChannel(channel)
+	return realTimeExchange.subChannel(channel)
 }
 
 func (realTimeExchange *RealTimeExchange) ListenTrade(pair CurrencyPair, trade chan []Trade) error {
 	channel := realTimeExchange.exchange.GenChannel(pair, TRADE_CHANNEL)
+
+	realTimeExchange.mu.Lock()
 	realTimeExchange.tradeChanMap[channel] = trade
 	realTimeExchange.channelTypeMap[channel] = TRADE_CHANNEL
+	realTimeExchange.mu.Unlock()
 
-	return realTimeExchange.SubChannel(channel)
+	return realTimeExchange.subChannel(channel)
 }
 
 func (realTimeExchange *RealTimeExchange) connectWebsocket() error {
