@@ -90,7 +90,74 @@ func (ku *Kucoin) CancelOrder(orderId string, currency CurrencyPair) (bool, erro
 }
 
 func (ku *Kucoin) GetOneOrder(orderId string, currency CurrencyPair) (*Order, error) {
-	panic("not implement")
+	types := []string{"BUY", "SELL"}
+
+	var resp map[string]interface{}
+	var err error
+
+	for _, t := range types {
+		uri := fmt.Sprintf("%s/v1/order/detail?orderOid=%s&symbol=%s&type=%s",
+			ku.baseUrl, orderId, currency.ToSymbol(`-`), t)
+
+		headers := ku.getSign(`/v1/order/detail`, map[string]string{
+			"orderOid": orderId,
+			"symbol":   currency.ToSymbol(`-`),
+			"type":     t,
+		})
+
+		resp, err = HttpGet2(ku.client, uri, headers)
+
+		if err != nil {
+			errCode := HTTP_ERR_CODE
+			errCode.OriginErrMsg = err.Error()
+			return nil, err
+		}
+
+		if resp["data"] != nil {
+			break
+		}
+	}
+
+	if val, ok := resp["success"]; ok && !val.(bool) {
+		return nil, fmt.Errorf("%s", resp["message"].(string))
+	}
+	if resp["data"] == nil {
+		return nil, fmt.Errorf("Order not exist")
+	}
+
+	o := resp["data"].(map[string]interface{})
+
+	order := Order{
+		OrderID2:   o["orderOid"].(string),
+		Amount:     o["dealAmount"].(float64) + o["pendingAmount"].(float64),
+		Price:      o["orderPrice"].(float64),
+		AvgPrice:   o["dealPriceAverage"].(float64),
+		DealAmount: o["dealAmount"].(float64),
+		Currency: CurrencyPair{
+			Currency{Symbol: o["coinType"].(string)},
+			Currency{Symbol: o["coinTypePair"].(string)},
+		},
+		Fee:       o["feeTotal"].(float64),
+		OrderTime: int(o["createdAt"].(float64)),
+	}
+
+	if o["dealAmount"].(float64) == 0 {
+		order.Status = ORDER_UNFINISH
+	}
+	if o["pendingAmount"].(float64) == 0 {
+		order.Status = ORDER_FINISH
+	}
+	if o["pendingAmount"].(float64) > 0 && o["dealAmount"].(float64) > 0 {
+		order.Status = ORDER_PART_FINISH
+	}
+
+	if o["type"].(string) == "SELL" {
+		order.Side = SELL
+	} else if o["type"].(string) == "BUY" {
+		order.Side = BUY
+	}
+
+	return &order, nil
 }
 
 func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
@@ -114,31 +181,37 @@ func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 
 	datamapAll := resp["data"].(map[string]interface{})
 	datamap := datamapAll["SELL"].([]interface{})
-	datamap = append(datamap,datamapAll["BUY"].([]interface{})...)
+	datamap = append(datamap, datamapAll["BUY"].([]interface{})...)
 
 	var orders []Order
 	for _, v := range datamap {
-		ordmap := v.(map[string]interface{})
+		o := v.(map[string]interface{})
 
-		ord := Order{
-			OrderID2:   ordmap["oid"].(string),
-			Amount:     ToFloat64(ordmap["dealAmount"]),
-			Price:      ToFloat64(ordmap["price"]),
-			DealAmount: ToFloat64(ordmap["pendingAmount"]),
-			OrderTime:  ToInt(ordmap["createdAt"]),
+		order := Order{
+			OrderID2:   o["oid"].(string),
+			Amount:     o["dealAmount"].(float64) + o["pendingAmount"].(float64),
+			Price:      o["price"].(float64),
+			DealAmount: o["dealAmount"].(float64),
+			OrderTime:  int(o["createdAt"].(float64)),
+			Currency:   currency,
 		}
 
-		ord.Currency = currency
-
-		typeS := ordmap["direction"].(string)
+		typeS := o["direction"].(string)
 		switch typeS {
 		case "SELL":
-			ord.Side = SELL
+			order.Side = SELL
 		case "BUY":
-			ord.Side = BUY
+			order.Side = BUY
 		}
 
-		orders = append(orders, ord)
+		if o["dealAmount"].(float64) == 0 {
+			order.Status = ORDER_UNFINISH
+		}
+		if o["pendingAmount"].(float64) > 0 && o["dealAmount"].(float64) > 0 {
+			order.Status = ORDER_PART_FINISH
+		}
+
+		orders = append(orders, order)
 	}
 
 	return orders, nil
