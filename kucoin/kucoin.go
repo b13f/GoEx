@@ -218,8 +218,60 @@ func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 }
 
 func (ku *Kucoin) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize int) ([]Order, error) {
-	panic("not implement")
+	uri := fmt.Sprintf("%s/v1/order/dealt?limit=20&page=%d&symbol="+currency.ToSymbol(`-`), ku.baseUrl,currentPage)
+
+	headers := ku.getSign(`/v1/order/dealt`, map[string]string{
+		"limit": "20",
+		"page": fmt.Sprintf("%d",currentPage),
+		"symbol": currency.ToSymbol(`-`),
+	})
+
+	resp, err := HttpGet2(ku.client, uri, headers)
+
+	if err != nil {
+		errCode := HTTP_ERR_CODE
+		errCode.OriginErrMsg = err.Error()
+		return nil, err
+	}
+
+	if val, ok := resp["success"]; ok && !val.(bool) {
+		return nil, fmt.Errorf("%s", resp["message"])
+	}
+
+	var orders []Order
+
+
+	datamapAll := resp["data"].(map[string]interface{})
+	datamap := datamapAll["datas"].([]interface{})
+
+	for _, v := range datamap {
+		o := v.(map[string]interface{})
+
+		order := Order{
+			OrderID2:   o["orderOid"].(string),
+			Amount:     o["amount"].(float64),
+			Price:      o["dealPrice"].(float64),
+			DealAmount: o["dealValue"].(float64),
+			OrderTime:  int(o["createdAt"].(float64)),
+			Currency:   currency,
+			Fee: o["fee"].(float64),
+		}
+
+		typeS := o["direction"].(string)
+		switch typeS {
+		case "SELL":
+			order.Side = SELL
+		case "BUY":
+			order.Side = BUY
+		}
+
+		order.Status = ORDER_FINISH
+		orders = append(orders, order)
+	}
+
+	return orders,nil
 }
+
 func (ku *Kucoin) GetAccount() (*Account, error) {
 	uri := fmt.Sprintf("%s/v1/account/balance?limit=20", ku.baseUrl)
 
