@@ -83,7 +83,7 @@ func (ku *Kucoin) CancelOrder(orderId string, currency CurrencyPair) (bool, erro
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return false, fmt.Errorf("%s", resp["message"].(string))
+		return false, fmt.Errorf("%s", resp["message"])
 	}
 
 	return true, nil
@@ -119,7 +119,7 @@ func (ku *Kucoin) GetOneOrder(orderId string, currency CurrencyPair) (*Order, er
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["message"].(string))
+		return nil, fmt.Errorf("%s", resp["msg"])
 	}
 	if resp["data"] == nil {
 		return nil, fmt.Errorf("Order not exist")
@@ -133,12 +133,12 @@ func (ku *Kucoin) GetOneOrder(orderId string, currency CurrencyPair) (*Order, er
 		Price:      o["orderPrice"].(float64),
 		AvgPrice:   o["dealPriceAverage"].(float64),
 		DealAmount: o["dealAmount"].(float64),
+		OrderTime:  int(o["createdAt"].(float64)),
 		Currency: CurrencyPair{
 			Currency{Symbol: o["coinType"].(string)},
 			Currency{Symbol: o["coinTypePair"].(string)},
 		},
 		Fee:       o["feeTotal"].(float64),
-		OrderTime: int(o["createdAt"].(float64)),
 	}
 
 	if o["dealAmount"].(float64) == 0 {
@@ -176,7 +176,7 @@ func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["message"].(string))
+		return nil, fmt.Errorf("%s", resp["msg"])
 	}
 
 	datamapAll := resp["data"].(map[string]interface{})
@@ -235,7 +235,7 @@ func (ku *Kucoin) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize 
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["message"])
+		return nil, fmt.Errorf("%s", resp["msg"])
 	}
 
 	var orders []Order
@@ -288,7 +288,7 @@ func (ku *Kucoin) GetAccount() (*Account, error) {
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["message"].(string))
+		return nil, fmt.Errorf("%s", resp["msg"])
 	}
 
 	acc := Account{}
@@ -423,13 +423,13 @@ func (ku *Kucoin) placeOrder(amount, price string, pair CurrencyPair, orderSide 
 	}
 
 	if val, ok := resp["success"]; ok && !val.(bool) {
-		return nil, fmt.Errorf("%s", resp["msg"].(string))
+		return nil, fmt.Errorf("%s", resp["msg"])
 	}
 
 	res := resp["data"].(map[string]interface{})
 
 	side := BUY
-	if orderSide == "sell" {
+	if orderSide == "SELL" {
 		side = SELL
 	}
 	return &Order{
