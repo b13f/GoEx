@@ -34,7 +34,9 @@ func (bfx *Bitfinex) GetExchangeName() string {
 
 func (bfx *Bitfinex) GetTicker(currencyPair CurrencyPair) (*Ticker, error) {
 	//pubticker
-	apiUrl := fmt.Sprintf("%s/pubticker/%s", BASE_URL, bfx.currencyPairToSymbol(currencyPair))
+	currencyPair = bfx.adaptCurrencyPair(currencyPair)
+
+	apiUrl := fmt.Sprintf("%s/pubticker/%s", BASE_URL, strings.ToLower(currencyPair.ToSymbol("")))
 	resp, err := HttpGet(bfx.httpClient, apiUrl)
 	if err != nil {
 		return nil, err
@@ -111,21 +113,7 @@ func (bfx *Bitfinex) GetWalletBalances() (map[string]*Account, error) {
 		subacc := v.(map[string]interface{})
 		typeStr := subacc["type"].(string)
 
-		currency := UNKNOWN
-		switch subacc["currency"].(string) {
-		case "eth":
-			currency = ETH
-		case "btc":
-			currency = BTC
-		case "ltc":
-			currency = LTC
-		case "usd":
-			currency = USD
-		case "etc":
-			currency = ETC
-		case "bch":
-			currency = BCH
-		}
+		currency := NewCurrency(subacc["currency"].(string), "")
 
 		if currency == UNKNOWN {
 			continue
@@ -338,4 +326,33 @@ func (bfx *Bitfinex) adaptTimestamp(timestamp string) int {
 	times := strings.Split(timestamp, ".")
 	intTime, _ := strconv.Atoi(times[0])
 	return intTime
+}
+
+func (bfx *Bitfinex) adaptCurrencyPair(pair CurrencyPair) CurrencyPair {
+	var currencyA Currency
+	var currencyB Currency
+
+	DASH := NewCurrency("DASH", "")
+	DSH := NewCurrency("DSH", "")
+	QTM := NewCurrency("QTM", "")
+	IOTA := NewCurrency("IOTA", "")
+	IOT := NewCurrency("IOT", "")
+
+	if pair.CurrencyA == DASH {
+		currencyA = DSH
+	} else if pair.CurrencyA == QTUM {
+		currencyA = QTM
+	} else if pair.CurrencyA == IOTA {
+		currencyA = IOT
+	} else {
+		currencyA = pair.CurrencyA
+	}
+
+	if pair.CurrencyB == USDT {
+		currencyB = USD
+	} else {
+		currencyB = pair.CurrencyB
+	}
+
+	return NewCurrencyPair(currencyA, currencyB)
 }

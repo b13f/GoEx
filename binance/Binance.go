@@ -15,7 +15,7 @@ import (
 const (
 	EXCHANGE_NAME = "binance.com"
 
-	API_BASE_URL = "https://www.binance.com/"
+	API_BASE_URL = "https://api.binance.com/"
 	API_V1       = API_BASE_URL + "api/v1/"
 	API_V3       = API_BASE_URL + "api/v3/"
 
@@ -53,17 +53,17 @@ func (bn *Binance) GetExchangeName() string {
 
 func (bn *Binance) GetTicker(currency CurrencyPair) (*Ticker, error) {
 	tickerUri := API_V1 + fmt.Sprintf(TICKER_URI, currency.ToSymbol(""))
-	bodyDataMap, err := HttpGet(bn.httpClient, tickerUri)
+	tickerMap, err := HttpGet(bn.httpClient, tickerUri)
 
 	if err != nil {
 		log.Println("GetTicker error:", err)
 		return nil, err
 	}
-	var tickerMap map[string]interface{} = bodyDataMap
+
 	var ticker Ticker
 
 	t, _ := tickerMap["closeTime"].(float64)
-	ticker.Date = uint64(t)
+	ticker.Date = uint64(t/1000)
 	ticker.Last = ToFloat64(tickerMap["lastPrice"])
 	ticker.Buy = ToFloat64(tickerMap["bidPrice"])
 	ticker.Sell = ToFloat64(tickerMap["askPrice"])
@@ -83,7 +83,7 @@ func (bn *Binance) GetDepth(size int, currencyPair CurrencyPair) (*Depth, error)
 	apiUrl := fmt.Sprintf(API_V1+DEPTH_URI, currencyPair.ToSymbol(""), size)
 	resp, err := HttpGet(bn.httpClient, apiUrl)
 	if err != nil {
-		//log.Println("GetDepth error:", err)
+		log.Println("GetDepth error:", err)
 		return nil, err
 	}
 
@@ -149,17 +149,20 @@ func (bn *Binance) placeOrder(amount, price string, pair CurrencyPair, orderType
 		log.Println(string(resp))
 		return nil, err
 	}
-	if _, isok := respmap["code"]; isok == true {
-		return nil, errors.New(respmap["msg"].(string))
+
+	orderId := ToInt(respmap["orderId"])
+	if orderId <= 0 {
+		return nil, errors.New(string(resp))
 	}
 
 	side := BUY
 	if orderSide == "SELL" {
 		side = SELL
 	}
+
 	return &Order{
 		Currency:   pair,
-		OrderID:    ToInt(respmap["orderId"]),
+		OrderID:    ToInt(orderId),
 		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
@@ -188,6 +191,7 @@ func (bn *Binance) GetAccount() (*Account, error) {
 
 	balances := respmap["balances"].([]interface{})
 	for _, v := range balances {
+		//log.Println(v)
 		vv := v.(map[string]interface{})
 
 		if ToFloat64(vv["free"]) == 0 && ToFloat64(vv["locked"])==0{
@@ -243,12 +247,9 @@ func (bn *Binance) CancelOrder(orderId string, currencyPair CurrencyPair) (bool,
 		return false, err
 	}
 
-	orderIdCanceled, isok := respmap["orderId"].(string)
-	if !isok {
+	orderIdCanceled := ToInt(respmap["orderId"])
+	if orderIdCanceled <= 0 {
 		return false, errors.New(string(resp))
-	}
-	if orderIdCanceled != orderId {
-		return false, errors.New("orderId doesn't match")
 	}
 
 	return true, nil
@@ -298,6 +299,8 @@ func (bn *Binance) GetOneOrder(orderId string, currencyPair CurrencyPair) (*Orde
 
 	ord.Amount = ToFloat64(respmap["origQty"].(string))
 	ord.Price = ToFloat64(respmap["price"].(string))
+	ord.DealAmount = ToFloat64(respmap["executedQty"])
+	ord.AvgPrice = ord.Price // response no avg price ， fill price
 
 	return &ord, nil
 }
@@ -318,7 +321,7 @@ func (bn *Binance) GetUnfinishOrders(currencyPair CurrencyPair) ([]Order, error)
 	orders := make([]Order, 0)
 	for _, v := range respmap {
 		ord := v.(map[string]interface{})
-		side := ord["type"].(string)
+		side := ord["side"].(string)
 		orderSide := SELL
 		if side == "BUY" {
 			orderSide = BUY

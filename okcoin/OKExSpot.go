@@ -2,11 +2,11 @@ package okcoin
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	. "github.com/nntaoli-project/GoEx"
 	"net/http"
 	"net/url"
-	"strings"
+	"strconv"
 )
 
 type OKExSpot struct {
@@ -34,57 +34,39 @@ func (ctx *OKExSpot) GetAccount() (*Account, error) {
 		return nil, err
 	}
 
-	resp := struct {
-		Info struct {
-			Funds struct {
-				Free    map[string]string `json:"free"`
-				Freezed map[string]string `json:"freezed"`
-			} `json:"funds"`
-		} `json:"info"`
-		Result bool    `json:"result"`
-		Error  float64 `json:"error_code"`
-	}{}
+	var respMap map[string]interface{}
 
-	err = json.Unmarshal(body, &resp)
+	err = json.Unmarshal(body, &respMap)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.Error > 0 {
-		return nil, fmt.Errorf("%f", resp.Error)
+	if errcode, isok := respMap["error_code"].(float64); isok {
+		errcodeStr := strconv.FormatFloat(errcode, 'f', 0, 64)
+		return nil, errors.New(errcodeStr)
+	}
+	//log.Println(respMap)
+	info, ok := respMap["info"].(map[string]interface{})
+	if !ok {
+		return nil, errors.New(string(body))
 	}
 
-	acc := new(Account)
-	acc.Exchange = ctx.GetExchangeName()
-	acc.SubAccounts = make(map[Currency]SubAccount)
+	funds := info["funds"].(map[string]interface{})
+	free := funds["free"].(map[string]interface{})
+	freezed := funds["freezed"].(map[string]interface{})
 
-	for curr, amount := range resp.Info.Funds.Free {
-		if ToFloat64(amount) == 0 {
-			continue
-		}
-		currency := NewCurrency(strings.ToUpper(curr), "")
-		acc.SubAccounts[currency] = SubAccount{
-			Currency: currency,
-			Amount:   ToFloat64(amount),
-		}
+	account := new(Account)
+	account.Exchange = ctx.GetExchangeName()
+
+	account.SubAccounts = make(map[Currency]SubAccount, 6)
+	for k, v := range free {
+		currencyKey := NewCurrency(k, "")
+		subAcc := SubAccount{
+			Currency:     currencyKey,
+			Amount:       ToFloat64(v),
+			ForzenAmount: ToFloat64(freezed[k])}
+		account.SubAccounts[currencyKey] = subAcc
 	}
 
-	for curr, frozenAmount := range resp.Info.Funds.Freezed {
-		if ToFloat64(frozenAmount) == 0 {
-			continue
-		}
-
-		currency := NewCurrency(strings.ToUpper(curr), "")
-		if t, ok := acc.SubAccounts[currency]; ok {
-			t.ForzenAmount = ToFloat64(frozenAmount)
-			acc.SubAccounts[currency] = t
-		} else {
-			acc.SubAccounts[currency] = SubAccount{
-				Currency:     currency,
-				ForzenAmount: ToFloat64(frozenAmount),
-			}
-		}
-	}
-
-	return acc, nil
+	return account, nil
 }
