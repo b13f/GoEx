@@ -2,7 +2,7 @@ package hitbtc
 
 import (
 	"errors"
-	. "github.com/nntaoli-project/GoEx"
+	. "github.com/thbourlove/GoEx"
 	//"log"
 	"encoding/json"
 	"fmt"

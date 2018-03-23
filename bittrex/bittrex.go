@@ -2,6 +2,7 @@ package bittrex
 
 import (
 	"fmt"
+	. "github.com/thbourlove/GoEx"
 	"net/http"
 	"net/url"
 	"sort"

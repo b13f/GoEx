@@ -1,7 +1,7 @@
 package btcbox
 
 import (
-	"github.com/nntaoli-project/GoEx"
+	"github.com/thbourlove/GoEx"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
