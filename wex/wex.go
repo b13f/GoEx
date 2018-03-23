@@ -2,7 +2,7 @@ package wex
 
 import (
 	"github.com/btcsuite/goleveldb/leveldb/errors"
-	. "github.com/thbourlove/GoEx"
+	. "github.com/nntaoli-project/GoEx"
 	"log"
 	"net/http"
 	"strings"

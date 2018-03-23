@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	. "github.com/thbourlove/GoEx"
+	. "github.com/nntaoli-project/GoEx"
 	"net/http"
 	"strconv"
 	"strings"

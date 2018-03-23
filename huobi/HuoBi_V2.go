@@ -6,15 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	. "github.com/nntaoli-project/GoEx"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+	"log"
 
 	"github.com/pkg/errors"
-
-	. "github.com/thbourlove/GoEx"
 )
 
 type HuoBi_V2 struct {

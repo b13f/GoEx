@@ -10,10 +10,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	. "github.com/nntaoli-project/GoEx"
 	"time"
 
 	"github.com/pkg/errors"
-	. "github.com/thbourlove/GoEx"
 )
 
 const (
