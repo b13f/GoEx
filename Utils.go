@@ -41,6 +41,27 @@ func ToInt(v interface{}) int {
 	}
 }
 
+func ToInt64(v interface{}) int64 {
+	if v == nil {
+		return 0
+	}
+
+	switch v.(type) {
+	case string:
+		vStr := v.(string)
+		vInt, _ := strconv.ParseInt(vStr, 10, 0)
+		return vInt
+	case int:
+		vI := v.(int)
+		return int64(vI)
+	case float64:
+		vF := v.(float64)
+		return int64(vF)
+	default:
+		panic("to int error.")
+	}
+}
+
 func ToUint64(v interface{}) uint64 {
 	if v == nil {
 		return 0
