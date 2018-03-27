@@ -193,15 +193,13 @@ func (zb *Zb) placeOrder(amount, price string, currency CurrencyPair, tradeType 
 		return nil, errors.New(fmt.Sprintf("%.0f", code))
 	}
 
-	orid := respmap["id"].(string)
-
 	order := new(Order)
 	order.Amount, _ = strconv.ParseFloat(amount, 64)
 	order.Price, _ = strconv.ParseFloat(price, 64)
 	order.Status = ORDER_UNFINISH
-	order.Currency = currency
-	order.OrderTime = int(time.Now().UnixNano() / 1000000)
-	order.OrderID, _ = strconv.Atoi(orid)
+	order.Pair = currency
+	order.OrderTime = time.Now()
+	order.Id = respmap["id"].(string)
 
 	switch tradeType {
 	case 0:
@@ -254,7 +252,7 @@ func (zb *Zb) CancelOrder(orderId string, currency CurrencyPair) (bool, error) {
 func parseOrder(order *Order, ordermap map[string]interface{}) {
 	//log.Println(ordermap)
 	//order.Currency = currency;
-	order.OrderID, _ = strconv.Atoi(ordermap["id"].(string))
+	order.Id = ordermap["id"].(string)
 	order.Amount = ordermap["total_amount"].(float64)
 	order.DealAmount = ordermap["trade_amount"].(float64)
 	order.Price = ordermap["price"].(float64)
@@ -265,7 +263,7 @@ func parseOrder(order *Order, ordermap map[string]interface{}) {
 		order.AvgPrice = 0
 	}
 
-	order.OrderTime = int(ordermap["trade_date"].(float64))
+	order.OrderTime =  time.Unix(int64(ordermap["trade_date"].(float64)/1000),((ordermap["trade_date"].(int64))%1000)*1000*1000)
 
 	orType := ordermap["type"].(float64)
 	switch orType {
@@ -312,7 +310,7 @@ func (zb *Zb) GetOneOrder(orderId string, currency CurrencyPair) (*Order, error)
 	}
 
 	order := new(Order)
-	order.Currency = currency
+	order.Pair = currency
 
 	parseOrder(order, ordermap)
 
@@ -352,7 +350,7 @@ func (zb *Zb) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 	for _, v := range resps {
 		ordermap := v.(map[string]interface{})
 		order := Order{}
-		order.Currency = currency
+		order.Pair = currency
 		parseOrder(&order, ordermap)
 		orders = append(orders, order)
 	}

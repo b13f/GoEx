@@ -254,8 +254,8 @@ func (hb *HuoBi) GetOneOrder(orderId string, currency CurrencyPair) (*Order, err
 
 	//fmt.Println(bodyDataMap);
 	order := new(Order)
-	order.Currency = currency
-	order.OrderID, _ = strconv.Atoi(orderId)
+	order.Pair = currency
+	order.Id = orderId
 	order.Side = TradeSide(bodyDataMap["type"].(float64))
 	order.Amount, _ = strconv.ParseFloat(bodyDataMap["order_amount"].(string), 64)
 	order.DealAmount, _ = strconv.ParseFloat(bodyDataMap["processed_amount"].(string), 64)
@@ -311,12 +311,12 @@ func (hb *HuoBi) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 
 	for _, v := range bodyDataMap {
 		order := Order{}
-		order.Currency = currency
+		order.Pair = currency
 		order.Amount, _ = strconv.ParseFloat(v["order_amount"].(string), 64)
 		order.Price, _ = strconv.ParseFloat(v["order_price"].(string), 64)
 		order.DealAmount, _ = strconv.ParseFloat(v["processed_amount"].(string), 64)
-		order.OrderTime = int(v["order_time"].(float64))
-		order.OrderID = int(v["id"].(float64))
+		order.OrderTime = time.Unix(int64(v["order_time"].(float64)/1000),((v["order_time"].(int64))%1000)*1000*1000)
+		order.Id = v["id"].(string)
 		order.Side = TradeSide(v["type"].(float64))
 		orders = append(orders, order)
 	}
@@ -370,10 +370,10 @@ func (hb *HuoBi) placeOrder(method, amount, price string, currency CurrencyPair)
 
 	if strings.Compare(ret, "success") == 0 {
 		order := new(Order)
-		order.OrderID = int(bodyDataMap["id"].(float64))
+		order.Id = bodyDataMap["id"].(string)
 		order.Price, _ = strconv.ParseFloat(price, 64)
 		order.Amount, _ = strconv.ParseFloat(amount, 64)
-		order.Currency = currency
+		order.Pair = currency
 		order.Status = ORDER_UNFINISH
 		return order, nil
 	}

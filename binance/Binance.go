@@ -161,15 +161,15 @@ func (bn *Binance) placeOrder(amount, price string, pair CurrencyPair, orderType
 	}
 
 	return &Order{
-		Currency:   pair,
-		OrderID:    ToInt(orderId),
+		Pair:   pair,
+		Id:    fmt.Sprintf("%d",orderId),
 		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
 		AvgPrice:   0,
 		Side:       TradeSide(side),
 		Status:     ORDER_UNFINISH,
-		OrderTime:  int(time.Now().Unix())}, nil
+		OrderTime:  time.Now()}, nil
 }
 
 func (bn *Binance) GetAccount() (*Account, error) {
@@ -275,8 +275,8 @@ func (bn *Binance) GetOneOrder(orderId string, currencyPair CurrencyPair) (*Orde
 	side := respmap["side"].(string)
 
 	ord := Order{}
-	ord.Currency = currencyPair
-	ord.OrderID = ToInt(orderId)
+	ord.Pair = currencyPair
+	ord.Id = orderId
 
 	if side == "SELL" {
 		ord.Side = SELL
@@ -328,13 +328,13 @@ func (bn *Binance) GetUnfinishOrders(currencyPair CurrencyPair) ([]Order, error)
 		}
 
 		orders = append(orders, Order{
-			OrderID:   ToInt(ord["orderId"]),
-			Currency:  currencyPair,
+			Id:   ord["orderId"].(string),
+			Pair:  currencyPair,
 			Price:     ToFloat64(ord["price"]),
 			Amount:    ToFloat64(ord["origQty"]),
 			Side:      TradeSide(orderSide),
 			Status:    ORDER_UNFINISH,
-			OrderTime: ToInt(ord["time"])})
+			OrderTime: time.Unix(int64(ord["time"].(float64)/1000),((ord["time"].(int64))%1000)*1000*1000)})
 	}
 	return orders, nil
 }

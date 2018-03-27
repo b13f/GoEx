@@ -67,8 +67,8 @@ func (k *Kraken) placeOrder(orderType, side, amount, price string, pair Currency
 	}
 
 	return &Order{
-		Currency: pair,
-		OrderID2: resp.TxIds[0],
+		Pair: pair,
+		Id: resp.TxIds[0],
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
 		Side:     tradeSide,
@@ -115,7 +115,7 @@ func (k *Kraken) toOrder(orderinfo interface{}) Order {
 		AvgPrice:   ToFloat64(omap["price"]),
 		Side:       k.convertSide(descmap["type"].(string)),
 		Status:     k.convertOrderStatus(omap["status"].(string)),
-		OrderTime:  ToInt(omap["opentm"]),
+		OrderTime:  time.Unix(int64(omap["opentm"].(float64)/1000),((omap["opentm"].(int64))%1000)*1000*1000),
 	}
 }
 
@@ -132,7 +132,7 @@ func (k *Kraken) GetOrderInfos(txids ...string) ([]Order, error) {
 	var ords []Order
 	for txid, v := range resultmap {
 		ord := k.toOrder(v)
-		ord.OrderID2 = txid
+		ord.Id = txid
 		ords = append(ords, ord)
 	}
 
@@ -151,7 +151,7 @@ func (k *Kraken) GetOneOrder(orderId string, currency CurrencyPair) (*Order, err
 	}
 
 	ord := &orders[0]
-	ord.Currency = currency
+	ord.Pair = currency
 	return ord, nil
 }
 
@@ -169,8 +169,8 @@ func (k *Kraken) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 
 	for txid, v := range result.Open {
 		ord := k.toOrder(v)
-		ord.OrderID2 = txid
-		ord.Currency = currency
+		ord.Id = txid
+		ord.Pair = currency
 		orders = append(orders, ord)
 	}
 

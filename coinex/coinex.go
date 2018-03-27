@@ -293,8 +293,8 @@ func (coinex *CoinEx) adaptTradeStatus(status string) TradeStatus {
 
 func (coinex *CoinEx) adaptOrder(ordermap map[string]interface{}, pair CurrencyPair) Order {
 	return Order{
-		Currency:   pair,
-		OrderID:    ToInt(ordermap["id"]),
+		Pair:   pair,
+		Id:    ordermap["id"].(string),
 		Amount:     ToFloat64(ordermap["amount"]),
 		Price:      ToFloat64(ordermap["price"]),
 		DealAmount: ToFloat64(ordermap["deal_amount"]),
@@ -302,5 +302,5 @@ func (coinex *CoinEx) adaptOrder(ordermap map[string]interface{}, pair CurrencyP
 		Status:     coinex.adaptTradeStatus(ordermap["status"].(string)),
 		Side:       coinex.adaptTradeSide(ordermap["type"].(string)),
 		Fee:        ToFloat64(ordermap["deal_fee"]),
-		OrderTime:  ToInt(ordermap["create_time"])}
+		OrderTime:  time.Unix(int64(ordermap["create_time"].(float64)/1000),((ordermap["create_time"].(int64))%1000)*1000*1000)}
 }

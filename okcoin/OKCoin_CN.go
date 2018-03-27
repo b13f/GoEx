@@ -138,10 +138,10 @@ func (ctx *OKCoinCN_API) placeOrder(side, amount, price string, currency Currenc
 	}
 
 	order := new(Order)
-	order.OrderID = int(respMap["order_id"].(float64))
+	order.Id = respMap["order_id"].(string)
 	order.Price, _ = strconv.ParseFloat(price, 64)
 	order.Amount, _ = strconv.ParseFloat(amount, 64)
-	order.Currency = currency
+	order.Pair = currency
 	order.Status = ORDER_UNFINISH
 
 	switch side {
@@ -228,13 +228,13 @@ func (ctx *OKCoinCN_API) getOrders(orderId string, currency CurrencyPair) ([]Ord
 		orderMap := v.(map[string]interface{})
 
 		var order Order
-		order.Currency = currency
-		order.OrderID = int(orderMap["order_id"].(float64))
+		order.Pair = currency
+		order.Id = orderMap["order_id"].(string)
 		order.Amount = orderMap["amount"].(float64)
 		order.Price = orderMap["price"].(float64)
 		order.DealAmount = orderMap["deal_amount"].(float64)
 		order.AvgPrice = orderMap["avg_price"].(float64)
-		order.OrderTime = int(orderMap["create_date"].(float64))
+		order.OrderTime =  time.Unix(int64(orderMap["create_date"].(float64)/1000),((orderMap["create_date"].(int64))%1000)*1000*1000)
 
 		//status:-1:已撤销  0:未成交  1:部分成交  2:完全成交 4:撤单处理中
 		switch int(orderMap["status"].(float64)) {
@@ -529,13 +529,13 @@ func (ctx *OKCoinCN_API) GetOrderHistorys(currency CurrencyPair, currentPage, pa
 		orderMap := v.(map[string]interface{})
 
 		var order Order
-		order.Currency = currency
-		order.OrderID = int(orderMap["order_id"].(float64))
+		order.Pair = currency
+		order.Id = orderMap["order_id"].(string)
 		order.Amount = orderMap["amount"].(float64)
 		order.Price = orderMap["price"].(float64)
 		order.DealAmount = orderMap["deal_amount"].(float64)
 		order.AvgPrice = orderMap["avg_price"].(float64)
-		order.OrderTime = int(orderMap["create_date"].(float64))
+		order.OrderTime =  time.Unix(int64(orderMap["create_date"].(float64)/1000),((orderMap["create_date"].(int64))%1000)*1000*1000)
 
 		//status:-1:已撤销  0:未成交  1:部分成交  2:完全成交 4:撤单处理中
 		switch int(orderMap["status"].(float64)) {

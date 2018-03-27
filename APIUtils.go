@@ -70,7 +70,7 @@ func CancelAllUnfinishedOrders(api API, currencyPair CurrencyPair) int {
 	if orders != nil {
 		c := 0
 		for _, ord := range orders.([]Order) {
-			_, err := api.CancelOrder(fmt.Sprintf("%d", ord.OrderID), currencyPair)
+			_, err := api.CancelOrder(fmt.Sprintf("%d", ord.Id), currencyPair)
 			if err != nil {
 				log.Println(err)
 			}
@@ -95,7 +95,7 @@ func CancelAllUnfinishedFutureOrders(api FutureRestAPI, contractType string, cur
 	orders := RE(10, api.GetUnfinishFutureOrders, currencyPair, contractType)
 	if orders != nil {
 		for _, ord := range orders.([]Order) {
-			_, err := api.FutureCancelOrder(currencyPair, contractType, fmt.Sprintf("%d", ord.OrderID))
+			_, err := api.FutureCancelOrder(currencyPair, contractType, fmt.Sprintf("%d", ord.Id))
 			if err != nil {
 				log.Println(err)
 			}

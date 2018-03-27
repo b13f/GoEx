@@ -165,8 +165,8 @@ func (hbV2 *HuoBi_V2) LimitBuy(amount, price string, currency CurrencyPair) (*Or
 		return nil, err
 	}
 	return &Order{
-		Currency: currency,
-		OrderID:  ToInt(orderId),
+		Pair: currency,
+		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
 		Side:     BUY}, nil
@@ -178,8 +178,8 @@ func (hbV2 *HuoBi_V2) LimitSell(amount, price string, currency CurrencyPair) (*O
 		return nil, err
 	}
 	return &Order{
-		Currency: currency,
-		OrderID:  ToInt(orderId),
+		Pair: currency,
+		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
 		Side:     SELL}, nil
@@ -191,8 +191,8 @@ func (hbV2 *HuoBi_V2) MarketBuy(amount, price string, currency CurrencyPair) (*O
 		return nil, err
 	}
 	return &Order{
-		Currency: currency,
-		OrderID:  ToInt(orderId),
+		Pair: currency,
+		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
 		Side:     BUY_MARKET}, nil
@@ -204,8 +204,8 @@ func (hbV2 *HuoBi_V2) MarketSell(amount, price string, currency CurrencyPair) (*
 		return nil, err
 	}
 	return &Order{
-		Currency: currency,
-		OrderID:  ToInt(orderId),
+		Pair: currency,
+		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
 		Side:     SELL_MARKET}, nil
@@ -213,12 +213,12 @@ func (hbV2 *HuoBi_V2) MarketSell(amount, price string, currency CurrencyPair) (*
 
 func (hbV2 *HuoBi_V2) parseOrder(ordmap map[string]interface{}) Order {
 	ord := Order{
-		OrderID:    ToInt(ordmap["id"]),
+		Id:    ordmap["id"].(string),
 		Amount:     ToFloat64(ordmap["amount"]),
 		Price:      ToFloat64(ordmap["price"]),
 		DealAmount: ToFloat64(ordmap["field-amount"]),
 		Fee:        ToFloat64(ordmap["field-fees"]),
-		OrderTime:  ToInt(ordmap["created-at"]),
+		OrderTime:  time.Unix(int64(ordmap["created-at"].(float64)/1000),((ordmap["created-at"].(int64))%1000)*1000*1000),
 	}
 
 	state := ordmap["state"].(string)
@@ -268,7 +268,7 @@ func (hbV2 *HuoBi_V2) GetOneOrder(orderId string, currency CurrencyPair) (*Order
 
 	datamap := respmap["data"].(map[string]interface{})
 	order := hbV2.parseOrder(datamap)
-	order.Currency = currency
+	order.Pair = currency
 	//log.Println(respmap)
 	return &order, nil
 }
@@ -354,7 +354,7 @@ func (hbV2 *HuoBi_V2) getOrders(queryparams queryOrdersParams) ([]Order, error) 
 	for _, v := range datamap {
 		ordmap := v.(map[string]interface{})
 		ord := hbV2.parseOrder(ordmap)
-		ord.Currency = queryparams.pair
+		ord.Pair = queryparams.pair
 		orders = append(orders, ord)
 	}
 
