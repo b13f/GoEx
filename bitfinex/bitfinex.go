@@ -113,7 +113,7 @@ func (bfx *Bitfinex) GetWalletBalances() (map[string]*Account, error) {
 		subacc := v.(map[string]interface{})
 		typeStr := subacc["type"].(string)
 
-		currency := NewCurrency(subacc["currency"].(string), "")
+		currency := NewCurrency(subacc["currency"].(string))
 
 		if currency == UNKNOWN {
 			continue
@@ -319,7 +319,7 @@ func (bfx *Bitfinex) currencyPairToSymbol(currencyPair CurrencyPair) string {
 func (bfx *Bitfinex) symbolToCurrencyPair(symbol string) CurrencyPair {
 	currencyA := strings.ToUpper(symbol[0:3])
 	currencyB := strings.ToUpper(symbol[3:])
-	return NewCurrencyPair(NewCurrency(currencyA, ""), NewCurrency(currencyB, ""))
+	return NewCurrencyPair(NewCurrency(currencyA), NewCurrency(currencyB))
 }
 
 func (bfx *Bitfinex) adaptTimestamp(timestamp string) int {
@@ -332,11 +332,11 @@ func (bfx *Bitfinex) adaptCurrencyPair(pair CurrencyPair) CurrencyPair {
 	var currencyA Currency
 	var currencyB Currency
 
-	DASH := NewCurrency("DASH", "")
-	DSH := NewCurrency("DSH", "")
-	QTM := NewCurrency("QTM", "")
-	IOTA := NewCurrency("IOTA", "")
-	IOT := NewCurrency("IOT", "")
+	DASH := NewCurrency("DASH")
+	DSH := NewCurrency("DSH")
+	QTM := NewCurrency("QTM")
+	IOTA := NewCurrency("IOTA")
+	IOT := NewCurrency("IOT")
 
 	if pair.CurrencyA == DASH {
 		currencyA = DSH

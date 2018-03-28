@@ -339,7 +339,7 @@ func (k *Kraken) convertCurrency(currencySymbol string) Currency {
 		currencySymbol = strings.Replace(currencySymbol, "X", "", 1)
 		currencySymbol = strings.Replace(currencySymbol, "Z", "", 1)
 	}
-	return NewCurrency(currencySymbol, "")
+	return NewCurrency(currencySymbol)
 }
 
 func (k *Kraken) convertPair(pair CurrencyPair) CurrencyPair {

@@ -368,7 +368,7 @@ func (poloniex *Poloniex) GetAccount() (*Account, error) {
 	acc.SubAccounts = make(map[Currency]SubAccount)
 
 	for k, v := range respmap {
-		var currency Currency = NewCurrency(k, "")
+		var currency Currency = NewCurrency(k)
 		vv := v.(map[string]interface{})
 		subAcc := SubAccount{}
 		subAcc.Currency = currency

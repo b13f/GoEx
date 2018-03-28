@@ -198,7 +198,7 @@ func (bn *Binance) GetAccount() (*Account, error) {
 			continue
 		}
 
-		currency := NewCurrency(vv["asset"].(string), "")
+		currency := NewCurrency(vv["asset"].(string))
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
 			Amount:       ToFloat64(vv["free"]),

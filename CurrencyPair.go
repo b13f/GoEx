@@ -4,7 +4,6 @@ import "strings"
 
 type Currency struct {
 	Symbol string
-	Desc   string
 }
 
 func (c Currency) String() string {
@@ -18,33 +17,33 @@ type CurrencyPair struct {
 }
 
 var (
-	UNKNOWN = Currency{"UNKNOWN", ""}
-	CNY     = Currency{"CNY", "rmb （China Yuan)"}
-	USD     = Currency{"USD", "USA dollar"}
-	USDT    = Currency{"USDT","http://tether.io"}
-	EUR     = Currency{"EUR", ""}
-	KRW     = Currency{"KRW", ""}
-	JPY     = Currency{"JPY", "japanese yen"}
-	BTC     = Currency{"BTC", "bitcoin.org"}
-	XBT     = Currency{"XBT", "bitcoin.org"}
-	BCC     = Currency{"BCC", "bitcoin-abc"}
-	BCH     = Currency{"BCH","bitcoin-abc"}
-	BCX     = Currency{"BCX",""}
-	LTC     = Currency{"LTC", "litecoin.org"}
-	ETH     = Currency{"ETH", ""}
-	ETC     = Currency{"ETC", ""}
-	EOS     = Currency{"EOS", ""}
-	BTS     = Currency{"BTS", ""}
-	QTUM    = Currency{"QTUM", ""}
-	SC      = Currency{"SC", "sia.tech"}
-	ANS     = Currency{"ANS", "www.antshares.org"}
-	ZEC     = Currency{"ZEC", ""}
-	DCR     = Currency{"DCR", ""}
-	XRP     = Currency{"XRP", ""}
-	BTG     = Currency{"BTG",""}
-	BCD     = Currency{"BCD",""}
-	NEO     = Currency{"NEO","neo.org"}
-	HSR     = Currency{"HSR",""}
+	UNKNOWN = Currency{"UNKNOWN"}
+	CNY     = Currency{"CNY"} //rmb （China Yuan)
+	USD     = Currency{"USD"} //USA dollar
+	USDT    = Currency{"USDT"} //http://tether.io
+	EUR     = Currency{"EUR"}
+	KRW     = Currency{"KRW"}
+	JPY     = Currency{"JPY"} //japanese yen
+	BTC     = Currency{"BTC"} //bitcoin.org
+	XBT     = Currency{"XBT"} //
+	BCC     = Currency{"BCC"} //bitcoin-abc
+	BCH     = Currency{"BCH"} //bitcoin-abc
+	BCX     = Currency{"BCX"}
+	LTC     = Currency{"LTC"} //litecoin-org
+	ETH     = Currency{"ETH"}
+	ETC     = Currency{"ETC"}
+	EOS     = Currency{"EOS"}
+	BTS     = Currency{"BTS"}
+	QTUM    = Currency{"QTUM"}
+	SC      = Currency{"SC"} //sia.tech
+	ANS     = Currency{"ANS"} //www.antshares.org
+	ZEC     = Currency{"ZEC"}
+	DCR     = Currency{"DCR"}
+	XRP     = Currency{"XRP"}
+	BTG     = Currency{"BTG"}
+	BCD     = Currency{"BCD"}
+	NEO     = Currency{"NEO"}
+	HSR     = Currency{"HSR"}
 
 	//currency pair
 
@@ -121,39 +120,8 @@ func (c CurrencyPair) String() string {
 	return c.ToSymbol("_")
 }
 
-func NewCurrency(symbol, desc string) Currency {
-	switch symbol {
-	case "cny" , "CNY":
-		return CNY
-	case "usdt", "USDT":
-		return USDT
-	case "usd", "USD":
-		return USD
-	case "jpy" , "JPY":
-		return JPY
-	case "krw", "KRW":
-		return KRW
-	case "eur", "EUR":
-		return EUR
-	case "btc", "BTC":
-		return BTC
-	case "xbt", "XBT":
-		return XBT
-	case "bch", "BCH":
-		return BCH
-	case "bcc", "BCC":
-		return BCC
-	case "ltc", "LTC":
-		return LTC
-	case "sc", "SC":
-		return SC
-	case "ans", "ANS":
-		return ANS
-	case "neo", "NEO":
-		return NEO
-	default:
-		return Currency{strings.ToUpper(symbol) , desc}
-	}
+func NewCurrency(symbol string) Currency {
+	return Currency{strings.ToUpper(symbol)}
 }
 
 func NewCurrencyPair(currencyA Currency, currencyB Currency) CurrencyPair {
@@ -163,8 +131,8 @@ func NewCurrencyPair(currencyA Currency, currencyB Currency) CurrencyPair {
 func NewCurrencyPair2(currencyPairSymbol string) CurrencyPair  {
 	currencys := strings.Split(currencyPairSymbol , "_")
 	if len(currencys) == 2 {
-		return CurrencyPair{NewCurrency(currencys[0] , "") ,
-		NewCurrency(currencys[1] , "")}
+		return CurrencyPair{NewCurrency(currencys[0]) ,
+		NewCurrency(currencys[1])}
 	}
 	return UNKNOWN_PAIR
 }

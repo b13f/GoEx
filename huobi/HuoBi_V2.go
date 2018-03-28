@@ -103,7 +103,7 @@ func (hbV2 *HuoBi_V2) GetAccount() (*Account, error) {
 	for _, v := range list {
 		balancemap := v.(map[string]interface{})
 		currencySymbol := balancemap["currency"].(string)
-		currency := NewCurrency(currencySymbol, "")
+		currency := NewCurrency(currencySymbol)
 		typeStr := balancemap["type"].(string)
 		balance := ToFloat64(balancemap["balance"])
 		if subAccMap[currency] == nil {

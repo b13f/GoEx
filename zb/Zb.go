@@ -153,7 +153,7 @@ func (zb *Zb) GetAccount() (*Account, error) {
 		subAcc := SubAccount{}
 		subAcc.Amount = ToFloat64(vv["available"])
 		subAcc.ForzenAmount = ToFloat64(vv["freez"])
-		subAcc.Currency = NewCurrency(vv["key"].(string), "")
+		subAcc.Currency = NewCurrency(vv["key"].(string))
 		acc.SubAccounts[subAcc.Currency] = subAcc
 	}
 

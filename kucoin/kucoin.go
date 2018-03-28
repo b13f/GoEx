@@ -303,7 +303,7 @@ func (ku *Kucoin) GetAccount() (*Account, error) {
 			continue
 		}
 
-		currency := NewCurrency(vv["coinType"].(string), "")
+		currency := NewCurrency(vv["coinType"].(string))
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
 			Amount:       ToFloat64(vv["balance"]),

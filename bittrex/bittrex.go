@@ -162,7 +162,7 @@ func (bx *Bittrex) GetAccount() (*Account, error) {
 			continue
 		}
 
-		currency := NewCurrency(vv["Currency"].(string), "")
+		currency := NewCurrency(vv["Currency"].(string))
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
 			Amount:       ToFloat64(vv["Available"]),
