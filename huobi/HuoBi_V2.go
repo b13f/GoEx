@@ -703,3 +703,16 @@ func (hb *HuoBi_V2) GetCurrencies() ([]Currency, error) {
 
 	return currencies, nil
 }
+
+func (hb *HuoBi_V2) DepthSubscribe(pair CurrencyPair) (chan *Depth, error) {
+	dCh := make(chan *Depth)
+
+	err := hb.RealTimeExchange.RunWebsocket()
+	if err != nil {
+		return nil, err
+	}
+
+	err = hb.RealTimeExchange.ListenDepth(pair,dCh)
+
+	return dCh, err
+}

@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	. "github.com/nntaoli-project/GoEx"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,8 +30,8 @@ const (
 )
 
 type Binance struct {
-	accessKey,
-	secretKey string
+	accessKey  string
+	secretKey  string
 	httpClient *http.Client
 }
 
@@ -63,7 +65,7 @@ func (bn *Binance) GetTicker(currency CurrencyPair) (*Ticker, error) {
 	var ticker Ticker
 
 	t, _ := tickerMap["closeTime"].(float64)
-	ticker.Date = uint64(t/1000)
+	ticker.Date = uint64(t / 1000)
 	ticker.Last = ToFloat64(tickerMap["lastPrice"])
 	ticker.Buy = ToFloat64(tickerMap["bidPrice"])
 	ticker.Sell = ToFloat64(tickerMap["askPrice"])
@@ -161,8 +163,8 @@ func (bn *Binance) placeOrder(amount, price string, pair CurrencyPair, orderType
 	}
 
 	return &Order{
-		Pair:   pair,
-		Id:    fmt.Sprintf("%d",orderId),
+		Pair:       pair,
+		Id:         fmt.Sprintf("%d", orderId),
 		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
@@ -194,7 +196,7 @@ func (bn *Binance) GetAccount() (*Account, error) {
 		//log.Println(v)
 		vv := v.(map[string]interface{})
 
-		if ToFloat64(vv["free"]) == 0 && ToFloat64(vv["locked"])==0{
+		if ToFloat64(vv["free"]) == 0 && ToFloat64(vv["locked"]) == 0 {
 			continue
 		}
 
@@ -328,13 +330,13 @@ func (bn *Binance) GetUnfinishOrders(currencyPair CurrencyPair) ([]Order, error)
 		}
 
 		orders = append(orders, Order{
-			Id:   ord["orderId"].(string),
-			Pair:  currencyPair,
+			Id:        ord["orderId"].(string),
+			Pair:      currencyPair,
 			Price:     ToFloat64(ord["price"]),
 			Amount:    ToFloat64(ord["origQty"]),
 			Side:      TradeSide(orderSide),
 			Status:    ORDER_UNFINISH,
-			OrderTime: time.Unix(int64(ord["time"].(float64)/1000),((ord["time"].(int64))%1000)*1000*1000)})
+			OrderTime: time.Unix(int64(ord["time"].(float64)/1000), ((ord["time"].(int64))%1000)*1000*1000)})
 	}
 	return orders, nil
 }
@@ -350,4 +352,77 @@ func (bn *Binance) GetTrades(currencyPair CurrencyPair, since int64) ([]Trade, e
 
 func (bn *Binance) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize int) ([]Order, error) {
 	panic("not implements")
+}
+
+func (bn *Binance) DepthSubscribe(pair CurrencyPair) (chan *Depth, error) {
+	url := fmt.Sprintf(`wss://stream.binance.com:9443/ws/%s@depth5`, strings.ToLower(pair.ToSymbol(``)))
+	c, err := bn.wsConnect(url)
+	if err != nil {
+		return nil, fmt.Errorf("websocket dial error %s", err)
+	}
+
+	msgChan := make(chan *Depth)
+
+	go func() {
+		for {
+			select {
+			default:
+				_, msg, err := c.ReadMessage()
+				if err != nil {
+					log.Printf("read message: %v\n", err)
+					if _, isClose := err.(*websocket.CloseError); isClose == true {
+						//reconnect
+						c, err = bn.wsConnect(url)
+					}
+					continue
+				}
+
+				msgChan <- bn.wsDepthDecode(msg)
+			}
+		}
+	}()
+
+	return msgChan, nil
+}
+
+func (bn *Binance) wsConnect(url string) (*websocket.Conn, error) {
+	c, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		//return nil,fmt.Errorf("websocket dial error %s", err)
+	}
+	return c, err
+}
+
+func (bn *Binance) wsDepthDecode(m []byte) *Depth {
+	respmap := struct {
+		LastUpdateId int
+		Bids         [][]interface{}
+		Asks         [][]interface{}
+	}{}
+
+	err := json.Unmarshal(m, &respmap)
+	if err != nil {
+		//
+	}
+
+	d := Depth{AskList: DepthRecords{}, BidList: DepthRecords{}}
+
+	for _, t := range respmap.Asks {
+		p, _ := strconv.ParseFloat(t[0].(string), 64)
+		a, _ := strconv.ParseFloat(t[1].(string), 64)
+		d.AskList = append(d.AskList, DepthRecord{
+			Price:  p,
+			Amount: a,
+		})
+	}
+	for _, t := range respmap.Bids {
+		p, _ := strconv.ParseFloat(t[0].(string), 64)
+		a, _ := strconv.ParseFloat(t[1].(string), 64)
+		d.BidList = append(d.BidList, DepthRecord{
+			Price:  p,
+			Amount: a,
+		})
+	}
+
+	return &d
 }

@@ -22,6 +22,10 @@ type RealTimeProtocol interface {
 	GetMessageHandler() MessageHandler
 }
 
+type SubscribeApi interface {
+	DepthSubscribe(pair CurrencyPair) (chan *Depth, error)
+}
+
 const (
 	UNKNOWN_CHANNEL = -1
 	DEPTH_CHANNEL   = iota
@@ -162,6 +166,10 @@ func (realTimeExchange *RealTimeExchange) StopWebsocket() error {
 }
 
 func (realTimeExchange *RealTimeExchange) RunWebsocket() error {
+	//check websocket already started
+	if realTimeExchange.ctx != nil {
+		return nil
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	realTimeExchange.ctx = ctx
 	realTimeExchange.cancel = cancel

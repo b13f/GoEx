@@ -869,3 +869,17 @@ func (ok *OKCoinCN_API) GetMessageHandler() MessageHandler {
 		}
 	}
 }
+
+func (ok *OKCoinCN_API) DepthSubscribe(pair CurrencyPair) (chan *Depth, error) {
+	dCh := make(chan *Depth)
+
+	err := ok.RealTimeExchange.RunWebsocket()
+	if err != nil {
+		return nil, err
+	}
+
+	err = ok.RealTimeExchange.ListenDepth(pair,dCh)
+
+	return dCh, err
+}
+
