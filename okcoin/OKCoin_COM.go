@@ -18,7 +18,7 @@ type OKCoinCOM_API struct {
 }
 
 func NewCOM(client *http.Client, api_key, secret_key string) *OKCoinCOM_API {
-	return &OKCoinCOM_API{OKCoinCN_API{client, api_key, secret_key, "https://www.okcoin.com/api/v1/"}}
+	return &OKCoinCOM_API{*NewWithBaseURL(client, api_key, secret_key, "https://www.okcoin.com/api/v1/")}
 }
 
 func (ctx *OKCoinCOM_API) GetAccount() (*Account, error) {

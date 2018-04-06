@@ -1,18 +1,20 @@
 package goex
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 type Order struct {
+	Id string
 	Price,
 	Amount,
 	AvgPrice,
 	DealAmount,
 	Fee float64
-	OrderID2  string
-	OrderID   int
-	OrderTime int
+	OrderTime time.Time
 	Status    TradeStatus
-	Currency  CurrencyPair
+	Pair      CurrencyPair
 	Side      TradeSide
 }
 

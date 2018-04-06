@@ -15,7 +15,7 @@ type OKExSpot struct {
 
 func NewOKExSpot(client *http.Client, accesskey, secretkey string) *OKExSpot {
 	return &OKExSpot{
-		OKCoinCN_API{client, accesskey, secretkey, "https://www.okex.com/api/v1/"}}
+		*NewWithBaseURL(client, accesskey, secretkey, "https://www.okex.com/api/v1/")}
 }
 
 func (ctx *OKExSpot) GetExchangeName() string {

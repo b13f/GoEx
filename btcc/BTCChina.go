@@ -161,8 +161,8 @@ func (btch *BTCChina) placeorder(method, amount, price string, currencyPair Curr
 	}
 
 	ord := new(Order)
-	ord.OrderID = ToInt(respmap["result"])
-	ord.Currency = currencyPair
+	ord.Id = respmap["result"].(string)
+	ord.Pair = currencyPair
 	ord.Amount = ToFloat64(amount)
 	ord.Price = ToFloat64(price)
 
@@ -200,7 +200,7 @@ func (btch *BTCChina) CancelOrder(orderId string, currency CurrencyPair) (bool, 
 
 func (btch *BTCChina) toOrder(ordermap map[string]interface{}) Order {
 	ord := Order{}
-	ord.OrderID = ToInt(ordermap["id"])
+	ord.Id = ordermap["id"].(string)
 	ord.Price = ToFloat64(ordermap["price"])
 	ord.Amount = ToFloat64(ordermap["amount_original"])
 	ord.DealAmount = ToFloat64(ordermap["amount"])

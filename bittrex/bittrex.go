@@ -2,13 +2,13 @@ package bittrex
 
 import (
 	"fmt"
+	. "github.com/nntaoli-project/GoEx"
 	"net/http"
 	"net/url"
 	"sort"
 	"time"
 
 	"encoding/json"
-	. "github.com/nntaoli-project/GoEx"
 	//"log"
 )
 
@@ -100,15 +100,15 @@ func (bx *Bittrex) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 		t, _ := time.Parse(layout, ordmap["Opened"].(string))
 
 		ord := Order{
-			OrderID2:   ordmap["OrderUuid"].(string),
+			Id:   ordmap["OrderUuid"].(string),
 			Amount:     ToFloat64(ordmap["Quantity"]),
 			Price:      ToFloat64(ordmap["Limit"]),
 			DealAmount: ToFloat64(ordmap["QuantityRemaining"]),
 			Fee:        ToFloat64(ordmap["CommissionPaid"]),
-			OrderTime:  int(t.UnixNano()),
+			OrderTime:  t,
 		}
 
-		ord.Currency = currency
+		ord.Pair = currency
 
 		typeS := ordmap["OrderType"].(string)
 		switch typeS {
@@ -162,7 +162,7 @@ func (bx *Bittrex) GetAccount() (*Account, error) {
 			continue
 		}
 
-		currency := NewCurrency(vv["Currency"].(string), "")
+		currency := NewCurrency(vv["Currency"].(string))
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
 			Amount:       ToFloat64(vv["Available"]),
@@ -293,13 +293,13 @@ func (bx *Bittrex) placeOrder(amount, price string, pair CurrencyPair, orderSide
 		side = SELL
 	}
 	return &Order{
-		Currency:   pair,
-		OrderID2:   res[`uuid`].(string),
+		Pair:   pair,
+		Id:   res[`uuid`].(string),
 		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
 		AvgPrice:   0,
 		Side:       TradeSide(side),
 		Status:     ORDER_UNFINISH,
-		OrderTime:  int(time.Now().Unix())}, nil
+		OrderTime:  time.Now()}, nil
 }

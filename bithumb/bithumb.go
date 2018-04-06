@@ -51,10 +51,10 @@ func (bit *Bithumb) placeOrder(side, amount, price string, pair CurrencyPair) (*
 
 	log.Println(retmap)
 	return &Order{
-		OrderID:  ToInt(retmap["order_id"]),
+		Id:  retmap["order_id"].(string),
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
-		Currency: pair,
+		Pair: pair,
 		Side:     tradeSide,
 		Status:   ORDER_UNFINISH}, nil
 }
@@ -135,8 +135,8 @@ func (bit *Bithumb) GetOneOrder2(side, orderId string, currency CurrencyPair) (*
 	avg := total / order.DealAmount
 	order.AvgPrice = ToFloat64(fmt.Sprintf("%.2f", avg))
 	order.Price = order.AvgPrice
-	order.Currency = currency
-	order.OrderID = ToInt(orderId)
+	order.Pair = currency
+	order.Id = orderId
 	order.Status = ORDER_FINISH
 
 	log.Println(retmap)
@@ -164,10 +164,10 @@ func (bit *Bithumb) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 	for _, v := range datas {
 		orderinfo := v.(map[string]interface{})
 		ord := Order{
-			OrderID:  ToInt(orderinfo["order_id"]),
+			Id:  orderinfo["order_id"].(string),
 			Amount:   ToFloat64(orderinfo["units"]),
 			Price:    ToFloat64(orderinfo["price"]),
-			Currency: currency,
+			Pair: currency,
 			Fee:      ToFloat64(orderinfo["fee"])}
 
 		remaining := ToFloat64(orderinfo["units_remaining"])

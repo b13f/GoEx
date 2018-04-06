@@ -113,7 +113,7 @@ func (bfx *Bitfinex) GetWalletBalances() (map[string]*Account, error) {
 		subacc := v.(map[string]interface{})
 		typeStr := subacc["type"].(string)
 
-		currency := NewCurrency(subacc["currency"].(string), "")
+		currency := NewCurrency(subacc["currency"].(string))
 
 		if currency == UNKNOWN {
 			continue
@@ -169,8 +169,8 @@ func (bfx *Bitfinex) placeOrder(orderType, side, amount, price string, pair Curr
 	}
 
 	order := new(Order)
-	order.Currency = pair
-	order.OrderID = ToInt(respmap["id"])
+	order.Pair = pair
+	order.Id = respmap["id"].(string)
 	order.Amount = ToFloat64(amount)
 	order.Price = ToFloat64(price)
 	order.AvgPrice = ToFloat64(respmap["avg_execution_price"])
@@ -223,13 +223,13 @@ func (bfx *Bitfinex) CancelOrder(orderId string, currencyPair CurrencyPair) (boo
 
 func (bfx *Bitfinex) toOrder(respmap map[string]interface{}) *Order {
 	order := new(Order)
-	order.Currency = bfx.symbolToCurrencyPair(respmap["symbol"].(string))
-	order.OrderID = ToInt(respmap["id"])
+	order.Pair = bfx.symbolToCurrencyPair(respmap["symbol"].(string))
+	order.Id = respmap["id"].(string)
 	order.Amount = ToFloat64(respmap["original_amount"])
 	order.Price = ToFloat64(respmap["price"])
 	order.DealAmount = ToFloat64(respmap["executed_amount"])
 	order.AvgPrice = ToFloat64(respmap["avg_execution_price"])
-	order.OrderTime = bfx.adaptTimestamp(respmap["timestamp"].(string))
+	order.OrderTime = time.Unix(int64(bfx.adaptTimestamp(respmap["timestamp"].(string))),0)
 
 	if order.DealAmount == order.Amount {
 		order.Status = ORDER_FINISH
@@ -319,7 +319,7 @@ func (bfx *Bitfinex) currencyPairToSymbol(currencyPair CurrencyPair) string {
 func (bfx *Bitfinex) symbolToCurrencyPair(symbol string) CurrencyPair {
 	currencyA := strings.ToUpper(symbol[0:3])
 	currencyB := strings.ToUpper(symbol[3:])
-	return NewCurrencyPair(NewCurrency(currencyA, ""), NewCurrency(currencyB, ""))
+	return NewCurrencyPair(NewCurrency(currencyA), NewCurrency(currencyB))
 }
 
 func (bfx *Bitfinex) adaptTimestamp(timestamp string) int {
@@ -332,11 +332,11 @@ func (bfx *Bitfinex) adaptCurrencyPair(pair CurrencyPair) CurrencyPair {
 	var currencyA Currency
 	var currencyB Currency
 
-	DASH := NewCurrency("DASH", "")
-	DSH := NewCurrency("DSH", "")
-	QTM := NewCurrency("QTM", "")
-	IOTA := NewCurrency("IOTA", "")
-	IOT := NewCurrency("IOT", "")
+	DASH := NewCurrency("DASH")
+	DSH := NewCurrency("DSH")
+	QTM := NewCurrency("QTM")
+	IOTA := NewCurrency("IOTA")
+	IOT := NewCurrency("IOT")
 
 	if pair.CurrencyA == DASH {
 		currencyA = DSH

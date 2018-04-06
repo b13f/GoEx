@@ -128,13 +128,13 @@ func (ku *Kucoin) GetOneOrder(orderId string, currency CurrencyPair) (*Order, er
 	o := resp["data"].(map[string]interface{})
 
 	order := Order{
-		OrderID2:   o["orderOid"].(string),
+		Id:   o["orderOid"].(string),
 		Amount:     o["dealAmount"].(float64) + o["pendingAmount"].(float64),
 		Price:      o["orderPrice"].(float64),
 		AvgPrice:   o["dealPriceAverage"].(float64),
 		DealAmount: o["dealAmount"].(float64),
-		OrderTime:  int(o["createdAt"].(float64)),
-		Currency: CurrencyPair{
+		OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),((o["createdAt"].(int64))%1000)*1000*1000),
+		Pair: CurrencyPair{
 			Currency{Symbol: o["coinType"].(string)},
 			Currency{Symbol: o["coinTypePair"].(string)},
 		},
@@ -188,12 +188,12 @@ func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 		o := v.(map[string]interface{})
 
 		order := Order{
-			OrderID2:   o["oid"].(string),
+			Id:   o["oid"].(string),
 			Amount:     o["dealAmount"].(float64) + o["pendingAmount"].(float64),
 			Price:      o["price"].(float64),
 			DealAmount: o["dealAmount"].(float64),
-			OrderTime:  int(o["createdAt"].(float64)),
-			Currency:   currency,
+			OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),((o["createdAt"].(int64))%1000)*1000*1000),
+			Pair:   currency,
 		}
 
 		typeS := o["direction"].(string)
@@ -248,12 +248,12 @@ func (ku *Kucoin) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize 
 		o := v.(map[string]interface{})
 
 		order := Order{
-			OrderID2:   o["orderOid"].(string),
+			Id:   o["orderOid"].(string),
 			Amount:     o["amount"].(float64),
 			Price:      o["dealPrice"].(float64),
 			DealAmount: o["dealValue"].(float64),
-			OrderTime:  int(o["createdAt"].(float64)),
-			Currency:   currency,
+			OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),((o["createdAt"].(int64))%1000)*1000*1000),
+			Pair:   currency,
 			Fee: o["fee"].(float64),
 		}
 
@@ -303,7 +303,7 @@ func (ku *Kucoin) GetAccount() (*Account, error) {
 			continue
 		}
 
-		currency := NewCurrency(vv["coinType"].(string), "")
+		currency := NewCurrency(vv["coinType"].(string))
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
 			Amount:       ToFloat64(vv["balance"]),
@@ -433,13 +433,13 @@ func (ku *Kucoin) placeOrder(amount, price string, pair CurrencyPair, orderSide 
 		side = SELL
 	}
 	return &Order{
-		Currency:   pair,
-		OrderID2:   res[`orderOid`].(string),
+		Pair:   pair,
+		Id:   res[`orderOid`].(string),
 		Price:      ToFloat64(price),
 		Amount:     ToFloat64(amount),
 		DealAmount: 0,
 		AvgPrice:   0,
 		Side:       TradeSide(side),
 		Status:     ORDER_UNFINISH,
-		OrderTime:  int(time.Now().Unix())}, nil
+		OrderTime:  time.Now()}, nil
 }

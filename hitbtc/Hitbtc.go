@@ -119,7 +119,7 @@ func (hitbtc *Hitbtc) GetAccount() (*Account, error) {
 
 	for _, v := range ret {
 		vv := v.(map[string]interface{})
-		currency := NewCurrency(vv["currency"].(string), "")
+		currency := NewCurrency(vv["currency"].(string))
 		acc.SubAccounts[currency] = SubAccount{
 			Currency:     currency,
 			Amount:       ToFloat64(vv["available"]),

@@ -7,11 +7,7 @@ type HuobiPro struct {
 }
 
 func NewHuobiPro(client *http.Client, apikey, secretkey, accountId string) *HuobiPro {
-	hbv2 := new(HuoBi_V2)
-	hbv2.accountId = accountId
-	hbv2.accessKey = apikey
-	hbv2.secretKey = secretkey
-	hbv2.httpClient = client
+	hbv2 := NewV2(client, apikey, secretkey, accountId)
 	hbv2.baseUrl = "https://api.huobi.pro"
 	return &HuobiPro{hbv2}
 }

@@ -146,12 +146,12 @@ func (poloniex *Poloniex) placeLimitOrder(command, amount, price string, currenc
 
 	orderNumber := respmap["orderNumber"].(string)
 	order := new(Order)
-	order.OrderTime = int(time.Now().Unix() * 1000)
-	order.OrderID, _ = strconv.Atoi(orderNumber)
+	order.OrderTime = time.Now()
+	order.Id = orderNumber
 	order.Amount, _ = strconv.ParseFloat(amount, 64)
 	order.Price, _ = strconv.ParseFloat(price, 64)
 	order.Status = ORDER_UNFINISH
-	order.Currency = currency
+	order.Pair = currency
 
 	switch command {
 	case "sell":
@@ -235,10 +235,10 @@ func (poloniex *Poloniex) GetOneOrder(orderId string, currency CurrencyPair) (*O
 				return nil, EX_ERR_NOT_FIND_ORDER
 			}
 		} else {
-			_ordId, _ := strconv.Atoi(orderId)
+			_ordId := orderId
 
 			for _, ord := range ords {
-				if ord.OrderID == _ordId {
+				if ord.Id == _ordId {
 					return &ord, nil
 				}
 			}
@@ -255,8 +255,8 @@ func (poloniex *Poloniex) GetOneOrder(orderId string, currency CurrencyPair) (*O
 	}
 
 	order := new(Order)
-	order.OrderID, _ = strconv.Atoi(orderId)
-	order.Currency = currency
+	order.Id = orderId
+	order.Pair = currency
 
 	total := 0.0
 
@@ -313,8 +313,8 @@ func (poloniex *Poloniex) GetUnfinishOrders(currency CurrencyPair) ([]Order, err
 	for _, v := range orderAr {
 		vv := v.(map[string]interface{})
 		order := Order{}
-		order.Currency = currency
-		order.OrderID, _ = strconv.Atoi(vv["orderNumber"].(string))
+		order.Pair = currency
+		order.Id = vv["orderNumber"].(string)
 		order.Amount, _ = strconv.ParseFloat(vv["amount"].(string), 64)
 		order.Price, _ = strconv.ParseFloat(vv["rate"].(string), 64)
 		order.Status = ORDER_UNFINISH
@@ -368,7 +368,7 @@ func (poloniex *Poloniex) GetAccount() (*Account, error) {
 	acc.SubAccounts = make(map[Currency]SubAccount)
 
 	for k, v := range respmap {
-		var currency Currency = NewCurrency(k, "")
+		var currency Currency = NewCurrency(k)
 		vv := v.(map[string]interface{})
 		subAcc := SubAccount{}
 		subAcc.Currency = currency

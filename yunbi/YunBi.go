@@ -236,12 +236,12 @@ func (yunbi *YunBi)placeOrder(side, amount, price string, currencyPair CurrencyP
 	}
 	
 	ord := new(Order)
-	ord.OrderID = int(respMap["id"].(float64))
-	ord.Currency = currencyPair
+	ord.Id = respMap["id"].(string)
+	ord.Pair = currencyPair
 	ord.Price, _ = strconv.ParseFloat(price, 64);
 	ord.Amount, _ = strconv.ParseFloat(amount, 64);
 	ord.Status = ORDER_UNFINISH;
-	ord.OrderTime = int(time.Now().Unix())
+	ord.OrderTime = time.Now()
 	
 	switch side {
 	case "buy":
@@ -290,7 +290,7 @@ func (yunbi *YunBi)GetOneOrder(orderId string, currency CurrencyPair) (*Order, e
 	log.Println(respMap)
 
 	ord := yunbi.parseOrder(respMap)
-	ord.Currency = currency
+	ord.Pair = currency
 	return &ord, err
 }
 
@@ -319,7 +319,7 @@ func (yunbi *YunBi) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 	orders := make([]Order, 0)
 	for _, v := range ordersMap {
 		ord := yunbi.parseOrder(v)
-		ord.Currency = currency
+		ord.Pair = currency
 		orders = append(orders, ord)
 	}
 
@@ -342,7 +342,7 @@ func (yunbi *YunBi) GetTrades(currencyPair CurrencyPair, since int64) ([]Trade, 
 
 func (yunbi *YunBi)parseOrder(orderMap map[string]interface{}) Order {
 	ord := Order{}
-	ord.OrderID = int(orderMap["id"].(float64))
+	ord.Id = orderMap["id"].(string)
 	ord.Amount, _ = strconv.ParseFloat(orderMap["volume"].(string), 64)
 	ord.Price, _ = strconv.ParseFloat(orderMap["price"].(string), 64)
 	ord.AvgPrice, _ = strconv.ParseFloat(orderMap["avg_price"].(string), 64)

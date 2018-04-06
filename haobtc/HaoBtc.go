@@ -207,10 +207,10 @@ func (ctx *HaoBtc) placeOrder(_type , amount , price string , currency CurrencyP
 	}
 
 	order := new(Order);
-	order.OrderID = int(bodyDataMap["order_id"].(float64));
+	order.Id = bodyDataMap["order_id"].(string);
 	order.Price, _ = strconv.ParseFloat(price, 64);
 	order.Amount, _ = strconv.ParseFloat(amount, 64);
-	order.Currency = currency;
+	order.Pair = currency;
 	order.Status = ORDER_UNFINISH;
 
 	switch _type {
@@ -302,7 +302,7 @@ func (ctx *HaoBtc) GetOneOrder(orderId string, currency CurrencyPair) (*Order, e
 	 */
 
 	order := new(Order);
-	order.OrderID = int(bodyDataMap["order_id"].(float64));
+	order.Id = bodyDataMap["order_id"].(string);
 	order.Amount = bodyDataMap["amount"].(float64);
 	order.DealAmount = bodyDataMap["deal_size"].(float64);
 	order.Price =  bodyDataMap["price"].(float64);
@@ -358,7 +358,7 @@ func (ctx *HaoBtc) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 	for _, v := range ordersArray {
 		_map := v.(map[string]interface{});
 		order := Order{};
-		order.OrderID = int(_map["order_id"].(float64));
+		order.Id = _map["order_id"].(string);
 		order.Amount = _map["amount"].(float64);
 		order.Price = _map["price"].(float64);
 		order.AvgPrice = _map["avg_price"].(float64);
