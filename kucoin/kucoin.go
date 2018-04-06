@@ -133,7 +133,7 @@ func (ku *Kucoin) GetOneOrder(orderId string, currency CurrencyPair) (*Order, er
 		Price:      o["orderPrice"].(float64),
 		AvgPrice:   o["dealPriceAverage"].(float64),
 		DealAmount: o["dealAmount"].(float64),
-		OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),((o["createdAt"].(int64))%1000)*1000*1000),
+		OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),(int64(o["createdAt"].(float64))%1000)*1000*1000),
 		Pair: CurrencyPair{
 			Currency{Symbol: o["coinType"].(string)},
 			Currency{Symbol: o["coinTypePair"].(string)},
@@ -192,7 +192,7 @@ func (ku *Kucoin) GetUnfinishOrders(currency CurrencyPair) ([]Order, error) {
 			Amount:     o["dealAmount"].(float64) + o["pendingAmount"].(float64),
 			Price:      o["price"].(float64),
 			DealAmount: o["dealAmount"].(float64),
-			OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),((o["createdAt"].(int64))%1000)*1000*1000),
+			OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),(int64(o["createdAt"].(float64))%1000)*1000*1000),
 			Pair:   currency,
 		}
 
@@ -252,7 +252,7 @@ func (ku *Kucoin) GetOrderHistorys(currency CurrencyPair, currentPage, pageSize 
 			Amount:     o["amount"].(float64),
 			Price:      o["dealPrice"].(float64),
 			DealAmount: o["dealValue"].(float64),
-			OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),((o["createdAt"].(int64))%1000)*1000*1000),
+			OrderTime:  time.Unix(int64(o["createdAt"].(float64)/1000),(int64(o["createdAt"].(float64))%1000)*1000*1000),
 			Pair:   currency,
 			Fee: o["fee"].(float64),
 		}
