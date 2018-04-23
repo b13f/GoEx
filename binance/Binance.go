@@ -303,6 +303,7 @@ func (bn *Binance) GetOneOrder(orderId string, currencyPair CurrencyPair) (*Orde
 	ord.Price = ToFloat64(respmap["price"].(string))
 	ord.DealAmount = ToFloat64(respmap["executedQty"])
 	ord.AvgPrice = ord.Price // response no avg price ， fill price
+	ord.OrderTime = time.Unix(int64(respmap["time"].(float64)/1000), ((int64(respmap["time"].(float64)))%1000)*1000*1000)
 
 	return &ord, nil
 }
@@ -330,13 +331,13 @@ func (bn *Binance) GetUnfinishOrders(currencyPair CurrencyPair) ([]Order, error)
 		}
 
 		orders = append(orders, Order{
-			Id:        ord["orderId"].(string),
+			Id:        fmt.Sprintf("%f",ord["orderId"].(float64)),
 			Pair:      currencyPair,
 			Price:     ToFloat64(ord["price"]),
 			Amount:    ToFloat64(ord["origQty"]),
 			Side:      TradeSide(orderSide),
 			Status:    ORDER_UNFINISH,
-			OrderTime: time.Unix(int64(ord["time"].(float64)/1000), ((ord["time"].(int64))%1000)*1000*1000)})
+			OrderTime: time.Unix(int64(ord["time"].(float64)/1000), ((int64(ord["time"].(float64)))%1000)*1000*1000)})
 	}
 	return orders, nil
 }
@@ -386,7 +387,8 @@ func (bn *Binance) DepthSubscribe(pair CurrencyPair) (chan *Depth, error) {
 }
 
 func (bn *Binance) wsConnect(url string) (*websocket.Conn, error) {
-	c, _, err := websocket.DefaultDialer.Dial(url, nil)
+	d := &websocket.Dialer{}
+	c, _, err := d.Dial(url, nil)
 	if err != nil {
 		//return nil,fmt.Errorf("websocket dial error %s", err)
 	}

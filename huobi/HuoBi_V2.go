@@ -169,7 +169,8 @@ func (hbV2 *HuoBi_V2) LimitBuy(amount, price string, currency CurrencyPair) (*Or
 		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
-		Side:     BUY}, nil
+		Side:     BUY,
+		OrderTime: time.Now()}, nil
 }
 
 func (hbV2 *HuoBi_V2) LimitSell(amount, price string, currency CurrencyPair) (*Order, error) {
@@ -182,7 +183,8 @@ func (hbV2 *HuoBi_V2) LimitSell(amount, price string, currency CurrencyPair) (*O
 		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
-		Side:     SELL}, nil
+		Side:     SELL,
+		OrderTime: time.Now()}, nil
 }
 
 func (hbV2 *HuoBi_V2) MarketBuy(amount, price string, currency CurrencyPair) (*Order, error) {
@@ -195,7 +197,8 @@ func (hbV2 *HuoBi_V2) MarketBuy(amount, price string, currency CurrencyPair) (*O
 		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
-		Side:     BUY_MARKET}, nil
+		Side:     BUY_MARKET,
+		OrderTime: time.Now()}, nil
 }
 
 func (hbV2 *HuoBi_V2) MarketSell(amount, price string, currency CurrencyPair) (*Order, error) {
@@ -208,17 +211,18 @@ func (hbV2 *HuoBi_V2) MarketSell(amount, price string, currency CurrencyPair) (*
 		Id:  orderId,
 		Amount:   ToFloat64(amount),
 		Price:    ToFloat64(price),
-		Side:     SELL_MARKET}, nil
+		Side:     SELL_MARKET,
+		OrderTime: time.Now()}, nil
 }
 
 func (hbV2 *HuoBi_V2) parseOrder(ordmap map[string]interface{}) Order {
 	ord := Order{
-		Id:    ordmap["id"].(string),
+		Id:    fmt.Sprintf("%.0f",ordmap["id"].(float64)),
 		Amount:     ToFloat64(ordmap["amount"]),
 		Price:      ToFloat64(ordmap["price"]),
 		DealAmount: ToFloat64(ordmap["field-amount"]),
 		Fee:        ToFloat64(ordmap["field-fees"]),
-		OrderTime:  time.Unix(int64(ordmap["created-at"].(float64)/1000),((ordmap["created-at"].(int64))%1000)*1000*1000),
+		OrderTime:  time.Unix(int64(ordmap["created-at"].(float64)/1000),((int64(ordmap["created-at"].(float64)))%1000)*1000*1000),
 	}
 
 	state := ordmap["state"].(string)

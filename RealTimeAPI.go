@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/pkg/errors"
+	"net/http"
 )
 
 type KeepAliveHandler func(context.Context, *RealTimeExchange)
@@ -121,10 +122,16 @@ func (realTimeExchange *RealTimeExchange) subChannel(channel string) error {
 		return errors.Wrap(err, "write json message")
 	}
 
-	if err := <-subChannelErrorChan; err != nil {
-		log.Println("recieve sub channel error")
-		return errors.Wrapf(err, "sub %s channel failed", channel)
-	}
+	go func() {
+		for {
+			if err := <-subChannelErrorChan;err != nil {
+				log.Println("recieve sub channel error %s",
+					errors.Wrapf(err, "sub %s channel failed", channel))
+				//return errors.Wrapf(err, "sub %s channel failed", channel)
+				break
+			}
+		}
+	}()
 
 	return nil
 }
@@ -152,7 +159,10 @@ func (realTimeExchange *RealTimeExchange) ListenTrade(pair CurrencyPair, trade c
 
 func (realTimeExchange *RealTimeExchange) connectWebsocket() error {
 	url := realTimeExchange.exchange.GetWebsocketURL()
-	if c, _, err := websocket.DefaultDialer.Dial(url, nil); err != nil {
+	d := &websocket.Dialer{
+		Proxy: http.ProxyFromEnvironment,
+	}
+	if c, _, err := d.Dial(url, nil); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("websocket dial %s", url))
 	} else {
 		realTimeExchange.c = c
@@ -201,11 +211,13 @@ func (realTimeExchange *RealTimeExchange) RunWebsocket() error {
 				_, msg, err := realTimeExchange.c.ReadMessage()
 				if err != nil {
 					log.Printf("read message: %v\n", err)
-					if _, isClose := err.(*websocket.CloseError); isClose == true {
-						if err := realTimeExchange.connectWebsocket(); err != nil {
-							log.Fatalf("reconnect websocket failed: %v\n", err)
-						}
+					// reconnect on all errors
+					if err := realTimeExchange.connectWebsocket(); err != nil {
+						log.Fatalf("reconnect websocket failed: %v\n", err)
+					} else {
+						realTimeExchange.reSubscribe()
 					}
+
 					continue
 				}
 				msgChan <- msg
@@ -222,4 +234,10 @@ func (realTimeExchange *RealTimeExchange) RunWebsocket() error {
 	}
 
 	return nil
+}
+
+func (realTimeExchange *RealTimeExchange) reSubscribe() {
+	for channel,_ := range realTimeExchange.depthChanMap {
+		realTimeExchange.subChannel(channel)
+	}
 }
