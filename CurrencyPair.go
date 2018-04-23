@@ -124,12 +124,12 @@ func NewCurrency(symbol string) Currency {
 	return Currency{strings.ToUpper(symbol)}
 }
 
-func NewCurrencyPair(currencyA Currency, currencyB Currency) CurrencyPair {
+func NewCurrencyPair(currencyA, currencyB Currency) CurrencyPair {
 	return CurrencyPair{currencyA, currencyB}
 }
 
-func NewCurrencyPair2(currencyPairSymbol string) CurrencyPair  {
-	currencys := strings.Split(currencyPairSymbol , "_")
+func NewCurrencyPairFromString(currencyPairSymbol, sep string) CurrencyPair  {
+	currencys := strings.Split(currencyPairSymbol , sep)
 	if len(currencys) == 2 {
 		return CurrencyPair{NewCurrency(currencys[0]) ,
 		NewCurrency(currencys[1])}
