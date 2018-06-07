@@ -428,3 +428,136 @@ func (bn *Binance) wsDepthDecode(m []byte) *Depth {
 
 	return &d
 }
+
+func (bn *Binance) getStreamKey() (streamKey string, err error) {
+	resp, err := HttpPostForm2(bn.httpClient, API_V1 +`userDataStream`,
+		nil,map[string]string{"X-MBX-APIKEY": bn.accessKey})
+	//log.Println("resp:", string(resp), "err:", err)
+	if err != nil {
+		return
+	}
+
+	t := struct {
+		ListenKey string
+	}{}
+
+	err = json.Unmarshal(resp,&t)
+	if err != nil {
+		return
+	}
+
+	return t.ListenKey,nil
+}
+
+func (bn *Binance) GetOrdersChan() (chan *Order, error) {
+	msgT := struct {
+		E	string `json:"e"`
+		Eu	int64  `json:"E"`
+	}{}
+
+	//msgB := struct {
+	//	M  int   `json:"m"`
+	//	T  int   `json:"t"`
+	//	B  int   `json:"b"`
+	//	S  int   `json:"s"`
+	//	Tu bool  `json:"T"`
+	//	Wu bool  `json:"W"`
+	//	Du bool  `json:"D"`
+	//	U  int64 `json:"u"`
+	//	Bu []struct {
+	//		A string `json:"a"`
+	//		F string `json:"f"`
+	//		L string `json:"l"`
+	//	} `json:"B"`
+	//}{}
+	msgO := struct {
+		Symbol		string `json:"s"`
+		ClientID	string `json:"c"`
+		Side		string `json:"S"`
+		OrderType	string `json:"o"`
+		TimeForce	string `json:"f"`
+		Amount		string `json:"q"`
+		Price		string `json:"p"`
+		StopPrice	string `json:"P"`
+		IcebergAmount	string `json:"F"`
+		ClientOriginalID	string `json:"C"`
+		ExecType	string `json:"x"`
+		Status		string `json:"X"`
+		RejectReason	string `json:"r"`
+		OrderID		int `json:"i"`
+		LastAmount	string `json:"l"`
+		CumAmount	string `json:"z"`
+		LastPrice	string `json:"L"`
+		FeeAmount	string `json:"n"`
+		FeeAsset	string `json:"N"`
+		Time		int64 `json:"T"`
+		TradeID		int `json:"t"`
+		IsWorking	bool `json:"w"`
+		IsMaker		bool `json:"m"`
+		Ignore		int `json:"I"`
+	}{}
+
+	key, err := bn.getStreamKey()
+	if err != nil {
+		return nil,err
+	}
+
+	url := fmt.Sprintf(`wss://stream.binance.com:9443/ws/%s`, key)
+	c, err := bn.wsConnect(url)
+	if err != nil {
+		return nil,err
+	}
+
+	msgChan := make(chan *Order)
+
+	go func() {
+		for {
+			select {
+			default:
+				_, msg, err := c.ReadMessage()
+				if err != nil {
+					log.Printf("read message: %v\n", err)
+					if _, isClose := err.(*websocket.CloseError); isClose == true {
+						//reconnect
+						key, _ := bn.getStreamKey()
+						url := fmt.Sprintf(`wss://stream.binance.com:9443/ws/%s`, key)
+						c, err = bn.wsConnect(url)
+					}
+					continue
+				}
+
+				json.Unmarshal(msg,&msgT)
+
+				if msgT.E == "executionReport" {
+					json.Unmarshal(msg,&msgO)
+
+				}
+
+				if msgO.ExecType != "TRADE" {
+					continue
+				}
+
+				//fmt.Printf("STATUS OF GETTING ORDER IS %s and %s\n",msgO.Status,msgO.ExecType)
+				o := &Order{Id:fmt.Sprintf("%d",msgO.OrderID)}
+
+				if msgO.Side == "SELL" {
+					o.Side = SELL
+				} else {
+					o.Side = BUY
+				}
+
+				o.Amount = ToFloat64(msgO.Amount)
+				o.Price = ToFloat64(msgO.Price)
+
+				msgChan <- o
+				//select {
+				//case msgChan <- o:
+				//default:
+				//}
+
+			}
+		}
+	}()
+
+	return msgChan,nil
+}

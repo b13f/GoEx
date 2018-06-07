@@ -25,6 +25,7 @@ type RealTimeProtocol interface {
 
 type SubscribeApi interface {
 	DepthSubscribe(pair CurrencyPair) (chan *Depth, error)
+	GetOrdersChan() (chan *Order, error)
 }
 
 const (

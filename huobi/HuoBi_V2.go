@@ -545,9 +545,9 @@ func handleDepthData(ctx context.Context, depthDataChan chan interface{}, depthC
 		case data := <-depthDataChan:
 			d, err := dataToDepth(data)
 			// 火币拿到的ask列表是从小到大排列的，需要反转过来
-			for i, j := 0, len(d.AskList)-1; i < j; i, j = i+1, j-1 {
-				d.AskList[i], d.AskList[j] = d.AskList[j], d.AskList[i]
-			}
+			//for i, j := 0, len(d.AskList)-1; i < j; i, j = i+1, j-1 {
+			//	d.AskList[i], d.AskList[j] = d.AskList[j], d.AskList[i]
+			//}
 			if err != nil {
 				log.Printf("convert data to depth: %v\n", err)
 				continue
@@ -719,4 +719,8 @@ func (hb *HuoBi_V2) DepthSubscribe(pair CurrencyPair) (chan *Depth, error) {
 	err = hb.RealTimeExchange.ListenDepth(pair,dCh)
 
 	return dCh, err
+}
+
+func (hb *HuoBi_V2) GetOrdersChan() (chan *Order, error) {
+	return nil,fmt.Errorf("not implemented")
 }
